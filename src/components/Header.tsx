@@ -1,0 +1,189 @@
+import { Menu, PhoneCall, X } from 'lucide-react';
+import { useEffect, useId, useRef, useState } from 'react';
+import { business, navItems } from '../data/siteData';
+
+const focusableSelector =
+  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+export function Header() {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
+  const [activeId, setActiveId] = useState('home');
+  const menuId = useId();
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 20);
+    onScroll();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
+
+  useEffect(() => {
+    const sections = navItems
+      .map(({ href }) => document.querySelector<HTMLElement>(href))
+      .filter((section): section is HTMLElement => Boolean(section));
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries
+          .filter((entry) => entry.isIntersecting)
+          .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+        if (visible?.target.id) setActiveId(visible.target.id);
+      },
+      { rootMargin: '-28% 0px -58% 0px', threshold: [0, 0.1, 0.35] },
+    );
+
+    sections.forEach((section) => observer.observe(section));
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (!menuOpen) return undefined;
+
+    const menuButton = menuButtonRef.current;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    closeButtonRef.current?.focus();
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        setMenuOpen(false);
+        return;
+      }
+
+      if (event.key !== 'Tab' || !panelRef.current) return;
+      const focusable = Array.from(
+        panelRef.current.querySelectorAll<HTMLElement>(focusableSelector),
+      ).filter((element) => !element.hasAttribute('disabled'));
+      if (!focusable.length) return;
+
+      const first = focusable[0];
+      const last = focusable.at(-1);
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last?.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first?.focus();
+      }
+    };
+
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener('keydown', onKeyDown);
+      menuButton?.focus();
+    };
+  }, [menuOpen]);
+
+  const closeMenu = () => setMenuOpen(false);
+
+  return (
+    <header className={`site-header${scrolled ? ' site-header--scrolled' : ''}`}>
+      <div className="site-header__inner">
+        <a className="brand" href="#home" aria-label={`${business.name} home`}>
+          <img src="/assets/brand/brand-mark.png" alt="" width="48" height="48" />
+          <span className="brand__copy">
+            <strong>Smart Save Solar</strong>
+            <small>Bicol</small>
+          </span>
+        </a>
+
+        <nav className="desktop-nav" aria-label="Primary navigation">
+          <ul>
+            {navItems.map((item) => (
+              <li key={item.href}>
+                <a
+                  href={item.href}
+                  aria-current={activeId === item.href.slice(1) ? 'page' : undefined}
+                >
+                  {item.label}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </nav>
+
+        <a
+          className="header-call"
+          href={business.phoneHref}
+          aria-label={`Call ${business.phoneDisplay}`}
+        >
+          <PhoneCall aria-hidden="true" size={18} />
+          <span>Call now</span>
+        </a>
+
+        <button
+          ref={menuButtonRef}
+          className="menu-toggle"
+          type="button"
+          aria-expanded={menuOpen}
+          aria-controls={menuId}
+          aria-label="Open navigation menu"
+          onClick={() => setMenuOpen(true)}
+        >
+          <Menu aria-hidden="true" />
+        </button>
+      </div>
+
+      <div className={`mobile-menu${menuOpen ? ' is-open' : ''}`} aria-hidden={!menuOpen}>
+        <button
+          className="mobile-menu__backdrop"
+          type="button"
+          aria-label="Close navigation menu"
+          tabIndex={menuOpen ? 0 : -1}
+          onClick={closeMenu}
+        />
+        <div
+          ref={panelRef}
+          id={menuId}
+          className="mobile-menu__panel"
+          role="dialog"
+          aria-modal="true"
+        >
+          <div className="mobile-menu__top">
+            <span className="mobile-menu__label">Navigate</span>
+            <button
+              ref={closeButtonRef}
+              className="icon-button"
+              type="button"
+              aria-label="Close navigation menu"
+              onClick={closeMenu}
+            >
+              <X aria-hidden="true" />
+            </button>
+          </div>
+          <nav aria-label="Mobile navigation">
+            <ol>
+              {navItems.map((item, index) => (
+                <li key={item.href}>
+                  <a
+                    href={item.href}
+                    tabIndex={menuOpen ? 0 : -1}
+                    aria-current={activeId === item.href.slice(1) ? 'page' : undefined}
+                    onClick={closeMenu}
+                  >
+                    <span>{String(index + 1).padStart(2, '0')}</span>
+                    {item.label}
+                  </a>
+                </li>
+              ))}
+            </ol>
+          </nav>
+          <a
+            className="button button--solar mobile-menu__call"
+            href={business.phoneHref}
+            tabIndex={menuOpen ? 0 : -1}
+          >
+            <PhoneCall aria-hidden="true" size={19} />
+            {business.phoneDisplay}
+          </a>
+        </div>
+      </div>
+    </header>
+  );
+}

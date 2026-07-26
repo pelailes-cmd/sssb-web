@@ -1,0 +1,7 @@
+dist/
+node_modules/
+Cover/
+Products/
+Promotions/
+public/assets/**/*.webp
+public/assets/**/*.png
