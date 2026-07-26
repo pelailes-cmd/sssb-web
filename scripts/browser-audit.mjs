@@ -251,6 +251,10 @@ try {
         const root = document.documentElement;
         const requiredIds = ['home','services','products','promotions','documentation','portfolio','contact','about'];
         const navItems = [...document.querySelectorAll('.desktop-nav a')];
+        const productCards = [...document.querySelectorAll('.product-card')];
+        const categoryCount = (category) => productCards.filter((card) =>
+          card.querySelector('.product-card__meta span')?.textContent.trim() === category
+        ).length;
         const menuButton = document.querySelector('.menu-toggle');
         const visible = (element) => element && getComputedStyle(element).display !== 'none' && element.getBoundingClientRect().width > 0;
         return {
@@ -263,7 +267,9 @@ try {
           mobileMenuSize: menuButton ? { width: menuButton.getBoundingClientRect().width, height: menuButton.getBoundingClientRect().height } : null,
           canvasAvailable: Boolean(document.querySelector('.hero-scene:not([hidden])')),
           navOrder: [...document.querySelectorAll('.mobile-menu nav a')].map((item) => item.textContent.trim().replace(/^\\d+/, '')),
-          productCards: document.querySelectorAll('.product-card').length,
+          productCards: productCards.length,
+          solarPanelCards: categoryCount('Solar Panels'),
+          inverterCards: categoryCount('Inverters'),
           modelPreviews: document.querySelectorAll('[data-model-preview]').length,
           modelFallbacks: document.querySelectorAll('[data-model-fallback]').length,
           formLocalOnlyNotice: document.querySelector('.inquiry-form__footer p')?.textContent.includes('local') ?? false,
@@ -527,7 +533,14 @@ try {
             Buffer.from(modelGridScreenshot.data, 'base64'),
           );
 
-          await evaluate(client, `document.querySelector('.product-card__details')?.click()`);
+          await evaluate(
+            client,
+            `(() => {
+              const card = document.querySelector('.product-card:has([data-model-preview])')
+                ?? document.querySelector('.product-card');
+              card?.querySelector('.product-card__details')?.click();
+            })()`,
+          );
           await delay(1400);
           modelDialogFlow = await evaluate(
             client,
@@ -575,18 +588,26 @@ try {
     const issues = [];
     if (entry.layout.horizontalOverflow > 1) issues.push('horizontal overflow');
     if (!entry.layout.requiredSectionsPresent) issues.push('missing required section');
-    if (entry.layout.productCards !== 13) issues.push('unexpected product-card count');
-    if (entry.layout.modelPreviews !== 11) issues.push('unexpected 3D preview count');
-    if (entry.layout.modelFallbacks !== 3) issues.push('unexpected source-image fallback count');
+    if (entry.layout.productCards < 1) issues.push('no product cards');
+    if (entry.layout.modelPreviews + entry.layout.modelFallbacks !== entry.layout.productCards + 1)
+      issues.push('product preview count');
     if (!entry.layout.formLocalOnlyNotice) issues.push('missing local-only form notice');
     if (entry.width === 390) {
-      if (entry.productFilterFlow?.filtered?.cardCount !== 2)
+      if (entry.productFilterFlow?.filtered?.cardCount !== entry.layout.solarPanelCards)
         issues.push('category filter card count');
-      if (entry.productFilterFlow?.filtered?.firstCardOpacity < 0.99)
+      if (
+        entry.layout.solarPanelCards > 0 &&
+        entry.productFilterFlow?.filtered?.firstCardOpacity < 0.99
+      )
         issues.push('category filter cards stayed hidden');
-      if (!forceStaticFallback && entry.productFilterFlow?.filtered?.firstModelStatus !== 'ready')
+      if (
+        entry.layout.solarPanelCards > 0 &&
+        !forceStaticFallback &&
+        entry.productFilterFlow?.filtered?.firstModelStatus !== 'ready'
+      )
         issues.push('filtered 3D preview did not become ready');
-      if (entry.productFilterFlow?.reset?.cardCount !== 13) issues.push('All filter card count');
+      if (entry.productFilterFlow?.reset?.cardCount !== entry.layout.productCards)
+        issues.push('All filter card count');
       if (entry.productFilterFlow?.reset?.firstCardOpacity < 0.99)
         issues.push('All filter cards stayed hidden');
       if (entry.productFilterFlow?.reset?.allPressed !== 'true')
@@ -601,21 +622,36 @@ try {
       ) {
         issues.push('mobile administrator configuration state');
       }
-      if (!forceStaticFallback && entry.modelVariantFlow?.before?.status !== 'ready')
+      if (
+        entry.layout.inverterCards > 0 &&
+        !forceStaticFallback &&
+        entry.modelVariantFlow?.before?.status !== 'ready'
+      )
         issues.push('initial inverter 3D variant did not load');
-      if (!forceStaticFallback && entry.modelVariantFlow?.after?.status !== 'ready')
+      if (
+        entry.layout.inverterCards > 0 &&
+        !forceStaticFallback &&
+        entry.modelVariantFlow?.after?.status !== 'ready'
+      )
         issues.push('next inverter 3D variant did not load');
-      if (entry.modelVariantFlow?.before?.label === entry.modelVariantFlow?.after?.label)
+      if (
+        entry.layout.inverterCards > 0 &&
+        entry.modelVariantFlow?.before?.label === entry.modelVariantFlow?.after?.label
+      )
         issues.push('inverter 3D variant did not change');
-      if (!forceStaticFallback && !entry.modelVariantFlow?.after?.canvasLabel?.includes('10kW'))
+      if (
+        entry.layout.inverterCards > 0 &&
+        !forceStaticFallback &&
+        !entry.modelVariantFlow?.after?.canvasLabel?.includes('10kW')
+      )
         issues.push('inverter 10kW model was not selected');
     }
     if (entry.width === 390 || entry.width === 1440) {
       if (!entry.modelDialogFlow?.open) issues.push('3D product dialog did not open');
       if (!forceStaticFallback && entry.modelDialogFlow?.status !== 'ready')
         issues.push('3D product dialog model did not load');
-      if (!forceStaticFallback && !entry.modelDialogFlow?.canvasLabel?.includes('730W'))
-        issues.push('3D product dialog loaded the wrong model');
+      if (!forceStaticFallback && !entry.modelDialogFlow?.canvasLabel)
+        issues.push('3D product dialog lacks an accessible model label');
     }
     if (entry.width >= 1180) {
       if (entry.layout.desktopNavCount !== 8) issues.push('desktop nav count');

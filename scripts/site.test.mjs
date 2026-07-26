@@ -108,3 +108,50 @@ test('administrator content management is backend-authorized without committed p
   assert.match(migration, /function public\.reorder_content_items\(ordered_ids uuid\[\]\)/i);
   assert.match(source, /rpc\('reorder_content_items'/);
 });
+
+test('missing baseline content is merged safely before first collection additions', async () => {
+  const repository = await readFile(path.join(root, 'src/cms/contentRepository.ts'), 'utf8');
+  const dashboard = await readFile(
+    path.join(root, 'src/components/admin/AdminDashboard.tsx'),
+    'utf8',
+  );
+
+  assert.match(repository, /export async function importMissingStaticContent/);
+  assert.match(repository, /ignoreDuplicates:\s*true/);
+  assert.match(repository, /seedCollectionBeforeFirstWrite/);
+  assert.match(repository, /Math\.max\(input\.position, seededItemCount\)/);
+  assert.match(dashboard, /Import .*missing item/);
+  assert.doesNotMatch(repository, /\.upsert\(itemRows, \{ onConflict: 'content_type,slug' \}\)/);
+});
+
+test('coworker provisioning stays server-side and owner-authorized', async () => {
+  const migration = await readFile(
+    path.join(root, 'supabase/migrations/202607260002_team_access.sql'),
+    'utf8',
+  );
+  const edgeFunction = await readFile(
+    path.join(root, 'supabase/functions/manage-team-user/index.ts'),
+    'utf8',
+  );
+  const clientSource = (
+    await Promise.all(
+      [
+        'src/cms/AdminContext.tsx',
+        'src/cms/supabaseClient.ts',
+        'src/cms/teamRepository.ts',
+        'src/components/admin/TeamAccessPanel.tsx',
+      ].map((file) => readFile(path.join(root, file), 'utf8')),
+    )
+  ).join('\n');
+
+  assert.match(migration, /role text not null default 'editor'/i);
+  assert.match(migration, /set role = 'owner'/i);
+  assert.match(migration, /private\.is_owner\(\)/i);
+  assert.match(edgeFunction, /SUPABASE_SERVICE_ROLE_KEY/);
+  assert.match(edgeFunction, /auth\.admin\.createUser/);
+  assert.match(edgeFunction, /callerResult\.data\?\.role !== 'owner'/);
+  assert.match(edgeFunction, /allowedOrigins/);
+  assert.match(clientSource, /authEmailForUsername/);
+  assert.match(clientSource, /functions\.invoke<TeamResponse>\('manage-team-user'/);
+  assert.doesNotMatch(clientSource, /SUPABASE_SERVICE_ROLE_KEY|service[_-]?role\s*=/i);
+});

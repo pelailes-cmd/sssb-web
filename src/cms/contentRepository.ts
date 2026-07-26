@@ -34,6 +34,7 @@ export const staticContent = {
 export type AdminProfile = {
   userId: string;
   username: string;
+  role: 'owner' | 'editor';
 };
 
 type SaveContentInput = {
@@ -176,27 +177,64 @@ export async function fetchAdminContent(): Promise<CmsSnapshot> {
 
 export async function getAdminProfile(userId: string): Promise<AdminProfile | null> {
   const client = await requireSupabase();
-  const result = await client
-    .from('admin_users')
-    .select('user_id, username')
-    .eq('user_id', userId)
-    .maybeSingle();
+  const result = await client.from('admin_users').select('*').eq('user_id', userId).maybeSingle();
 
   if (result.error) throw result.error;
-  if (!result.data || typeof result.data.username !== 'string') return null;
+  if (
+    !result.data ||
+    typeof result.data.user_id !== 'string' ||
+    typeof result.data.username !== 'string'
+  ) {
+    return null;
+  }
 
   return {
-    userId,
+    userId: result.data.user_id,
     username: result.data.username,
+    role: result.data.role === 'owner' ? 'owner' : 'editor',
   };
 }
 
-export async function initializeStaticContent(): Promise<CmsSnapshot> {
+const contentKey = (contentType: ContentType, slug: string) => `${contentType}:${slug}`;
+
+export function countMissingStaticItems(snapshot: CmsSnapshot): number {
+  const existingKeys = new Set(
+    snapshot.items.map((item) => contentKey(item.contentType, item.slug)),
+  );
+
+  return contentTypes.reduce(
+    (count, contentType) =>
+      count +
+      staticContent[contentType].filter(
+        (item) => !existingKeys.has(contentKey(contentType, item.id)),
+      ).length,
+    0,
+  );
+}
+
+export async function importMissingStaticContent(): Promise<CmsSnapshot> {
   const client = await requireSupabase();
   const current = await fetchAdminContent();
   const missingTypes = contentTypes.filter((type) => !current.collections.has(type));
+  const existingKeys = new Set(
+    current.items.map((item) => contentKey(item.contentType, item.slug)),
+  );
 
-  if (!missingTypes.length) return current;
+  const itemRows = contentTypes.flatMap((contentType) =>
+    staticContent[contentType]
+      .filter((data) => !existingKeys.has(contentKey(contentType, data.id)))
+      .map((data, fallbackPosition) => ({
+        content_type: contentType,
+        slug: data.id,
+        data: encodeSiteAssets(data),
+        position:
+          current.items.filter((item) => item.contentType === contentType).length +
+          fallbackPosition,
+        is_published: true,
+      })),
+  );
+
+  if (!missingTypes.length && !itemRows.length) return current;
 
   const initializedAt = new Date().toISOString();
   const collectionRows = missingTypes.map((contentType) => ({
@@ -204,35 +242,30 @@ export async function initializeStaticContent(): Promise<CmsSnapshot> {
     initialized_at: initializedAt,
     updated_at: initializedAt,
   }));
-  const collectionResult = await client
-    .from('content_collections')
-    .upsert(collectionRows, { onConflict: 'content_type' });
+  if (collectionRows.length) {
+    const collectionResult = await client
+      .from('content_collections')
+      .upsert(collectionRows, { onConflict: 'content_type' });
 
-  if (collectionResult.error) throw collectionResult.error;
-
-  const itemRows = missingTypes.flatMap((contentType) =>
-    staticContent[contentType].map((data, position) => ({
-      content_type: contentType,
-      slug: data.id,
-      data: encodeSiteAssets(data),
-      position,
-      is_published: true,
-    })),
-  );
+    if (collectionResult.error) throw collectionResult.error;
+  }
 
   if (itemRows.length) {
-    const itemResult = await client
-      .from('content_items')
-      .upsert(itemRows, { onConflict: 'content_type,slug' });
+    const itemResult = await client.from('content_items').upsert(itemRows, {
+      onConflict: 'content_type,slug',
+      ignoreDuplicates: true,
+    });
     if (itemResult.error) {
-      const rollbackResult = await client
-        .from('content_collections')
-        .delete()
-        .in('content_type', missingTypes);
-      if (rollbackResult.error) {
-        throw new Error(
-          `${itemResult.error.message} The incomplete collection markers also need manual cleanup: ${rollbackResult.error.message}`,
-        );
+      if (missingTypes.length) {
+        const rollbackResult = await client
+          .from('content_collections')
+          .delete()
+          .in('content_type', missingTypes);
+        if (rollbackResult.error) {
+          throw new Error(
+            `${itemResult.error.message} The incomplete collection markers also need manual cleanup: ${rollbackResult.error.message}`,
+          );
+        }
       }
       throw itemResult.error;
     }
@@ -241,23 +274,62 @@ export async function initializeStaticContent(): Promise<CmsSnapshot> {
   return fetchAdminContent();
 }
 
+async function seedCollectionBeforeFirstWrite(contentType: ContentType): Promise<number> {
+  const client = await requireSupabase();
+  const existingCollection = await client
+    .from('content_collections')
+    .select('content_type')
+    .eq('content_type', contentType)
+    .maybeSingle();
+
+  if (existingCollection.error) throw existingCollection.error;
+  if (existingCollection.data) return 0;
+
+  const initializedAt = new Date().toISOString();
+  const collectionResult = await client.from('content_collections').insert({
+    content_type: contentType,
+    initialized_at: initializedAt,
+    updated_at: initializedAt,
+  });
+  if (collectionResult.error) throw collectionResult.error;
+
+  const baselineRows = staticContent[contentType].map((data, position) => ({
+    content_type: contentType,
+    slug: data.id,
+    data: encodeSiteAssets(data),
+    position,
+    is_published: true,
+  }));
+
+  if (!baselineRows.length) return 0;
+
+  const baselineResult = await client.from('content_items').upsert(baselineRows, {
+    onConflict: 'content_type,slug',
+    ignoreDuplicates: true,
+  });
+  if (!baselineResult.error) return baselineRows.length;
+
+  const rollbackResult = await client
+    .from('content_collections')
+    .delete()
+    .eq('content_type', contentType);
+  if (rollbackResult.error) {
+    throw new Error(
+      `${baselineResult.error.message} The incomplete collection marker also needs manual cleanup: ${rollbackResult.error.message}`,
+    );
+  }
+  throw baselineResult.error;
+}
+
 export async function saveContentItem(input: SaveContentInput): Promise<ManagedContentItem> {
   const client = await requireSupabase();
-  const now = new Date().toISOString();
-  const collectionResult = await client
-    .from('content_collections')
-    .upsert(
-      { content_type: input.contentType, initialized_at: now },
-      { onConflict: 'content_type', ignoreDuplicates: true },
-    );
-
-  if (collectionResult.error) throw collectionResult.error;
+  const seededItemCount = await seedCollectionBeforeFirstWrite(input.contentType);
 
   const row = {
     content_type: input.contentType,
     slug: input.data.id,
     data: encodeSiteAssets(input.data),
-    position: input.position,
+    position: input.recordId ? input.position : Math.max(input.position, seededItemCount),
     is_published: input.isPublished,
   };
 

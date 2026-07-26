@@ -10,3 +10,4 @@ dist/
 Thumbs.db
 tmp/
 public/assets/
+supabase/.temp/

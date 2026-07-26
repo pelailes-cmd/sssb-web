@@ -17,15 +17,17 @@ import {
   Save,
   Settings2,
   Trash2,
+  UsersRound,
   Wrench,
   X,
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { useAdmin } from '../../cms/AdminContext';
 import {
+  countMissingStaticItems,
   deleteContentItem,
   fetchAdminContent,
-  initializeStaticContent,
+  importMissingStaticContent,
   saveContentItem,
   updateContentOrder,
 } from '../../cms/contentRepository';
@@ -39,6 +41,7 @@ import {
   type ManagedContentItem,
 } from '../../cms/types';
 import { ContentEditor } from './ContentEditor';
+import { TeamAccessPanel } from './TeamAccessPanel';
 
 const typeIcons = {
   products: Package,
@@ -162,6 +165,7 @@ export function AdminDashboard() {
   const [notice, setNotice] = useState<string | null>(null);
   const [editing, setEditing] = useState<ManagedContentItem | null | undefined>(undefined);
   const [securityOpen, setSecurityOpen] = useState(false);
+  const [teamOpen, setTeamOpen] = useState(false);
 
   const load = useCallback(async () => {
     if (!isAdmin) return;
@@ -193,6 +197,7 @@ export function AdminDashboard() {
   const dismissDashboard = useCallback(() => {
     setEditing(undefined);
     setSecurityOpen(false);
+    setTeamOpen(false);
     setNotice(null);
     closeDashboard();
   }, [closeDashboard]);
@@ -206,7 +211,9 @@ export function AdminDashboard() {
   );
 
   const initializedCount = snapshot.collections.size;
-  const canAdd = selectedType !== 'about' || currentItems.length === 0;
+  const missingStaticItems = countMissingStaticItems(snapshot);
+  const canAdd =
+    selectedType !== 'about' || (currentItems.length === 0 && snapshot.collections.has('about'));
 
   const synchronize = useCallback(async () => {
     await load();
@@ -218,9 +225,9 @@ export function AdminDashboard() {
     setError(null);
     setNotice(null);
     try {
-      setSnapshot(await initializeStaticContent());
+      setSnapshot(await importMissingStaticContent());
       await refreshPublicContent();
-      setNotice('Current verified website content is now managed by the database.');
+      setNotice('Missing verified website content was imported without replacing your additions.');
     } catch (initializeError) {
       setError(
         initializeError instanceof Error
@@ -351,12 +358,15 @@ export function AdminDashboard() {
                 <button
                   key={type}
                   type="button"
-                  className={selectedType === type && !securityOpen ? 'is-active' : ''}
-                  aria-current={selectedType === type && !securityOpen ? 'page' : undefined}
+                  className={selectedType === type && !securityOpen && !teamOpen ? 'is-active' : ''}
+                  aria-current={
+                    selectedType === type && !securityOpen && !teamOpen ? 'page' : undefined
+                  }
                   onClick={() => {
                     setSelectedType(type);
                     setEditing(undefined);
                     setSecurityOpen(false);
+                    setTeamOpen(false);
                     setError(null);
                   }}
                 >
@@ -373,15 +383,34 @@ export function AdminDashboard() {
               <CircleUserRound aria-hidden="true" />
               <span>
                 <strong>{profile?.username}</strong>
-                <small>Administrator</small>
+                <small>{profile?.role === 'owner' ? 'Owner' : 'Content manager'}</small>
               </span>
             </div>
+            {profile?.role === 'owner' ? (
+              <button
+                type="button"
+                className={teamOpen ? 'is-active' : ''}
+                onClick={() => {
+                  setTeamOpen(true);
+                  setSecurityOpen(false);
+                  setEditing(undefined);
+                  setError(null);
+                  setNotice(null);
+                }}
+              >
+                <UsersRound aria-hidden="true" />
+                Team access
+              </button>
+            ) : null}
             <button
               type="button"
               className={securityOpen ? 'is-active' : ''}
               onClick={() => {
                 setSecurityOpen(true);
+                setTeamOpen(false);
                 setEditing(undefined);
+                setError(null);
+                setNotice(null);
               }}
             >
               <Settings2 aria-hidden="true" />
@@ -399,11 +428,15 @@ export function AdminDashboard() {
             <div>
               <p className="eyebrow">Content manager</p>
               <h2 id="admin-dashboard-title">
-                {securityOpen ? 'Account security' : contentTypeLabels[selectedType]}
+                {teamOpen
+                  ? 'Team access'
+                  : securityOpen
+                    ? 'Account security'
+                    : contentTypeLabels[selectedType]}
               </h2>
             </div>
             <div>
-              {!securityOpen && editing === undefined && canAdd ? (
+              {!securityOpen && !teamOpen && editing === undefined && canAdd ? (
                 <button
                   className="button button--primary"
                   type="button"
@@ -425,20 +458,22 @@ export function AdminDashboard() {
           </header>
 
           <main className="admin-workspace__main">
-            {error && editing === undefined ? (
+            {error && editing === undefined && !securityOpen && !teamOpen ? (
               <div className="admin-notice admin-notice--error" role="alert">
                 <strong>Something needs attention</strong>
                 <p>{error}</p>
               </div>
             ) : null}
-            {notice && editing === undefined ? (
+            {notice && editing === undefined && !securityOpen && !teamOpen ? (
               <div className="admin-notice" role="status">
                 <strong>Saved</strong>
                 <p>{notice}</p>
               </div>
             ) : null}
 
-            {securityOpen ? (
+            {teamOpen && profile ? (
+              <TeamAccessPanel currentUserId={profile.userId} />
+            ) : securityOpen ? (
               <PasswordPanel onDone={() => setSecurityOpen(false)} />
             ) : editing !== undefined ? (
               <ContentEditor
@@ -474,17 +509,18 @@ export function AdminDashboard() {
                   </button>
                 </div>
 
-                {initializedCount < contentTypes.length ? (
+                {initializedCount < contentTypes.length || missingStaticItems > 0 ? (
                   <section className="admin-bootstrap">
                     <span>
                       <LayoutDashboard aria-hidden="true" />
                     </span>
                     <div>
-                      <p className="eyebrow">First-time setup</p>
-                      <h3>Bring the current verified website content into the dashboard.</h3>
+                      <p className="eyebrow">Existing website content</p>
+                      <h3>Import any original items that are not in the dashboard yet.</h3>
                       <p>
-                        This initializes only collections that have not been managed yet. Existing
-                        database records are preserved.
+                        This safely merges missing products, promotions, services, and About Us
+                        content. Your additions and edits are preserved and duplicate records are
+                        skipped.
                       </p>
                     </div>
                     <button
@@ -498,7 +534,9 @@ export function AdminDashboard() {
                       ) : (
                         <Save aria-hidden="true" />
                       )}
-                      Initialize content
+                      {missingStaticItems > 0
+                        ? `Import ${missingStaticItems} missing item${missingStaticItems === 1 ? '' : 's'}`
+                        : 'Initialize empty collections'}
                     </button>
                   </section>
                 ) : null}

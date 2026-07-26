@@ -11,8 +11,23 @@ export const cmsConfiguration = {
   publishableKey,
   isConfigured: Boolean(projectUrl && publishableKey),
   adminUsername: (import.meta.env.VITE_ADMIN_USERNAME?.trim() || 'pelailes').toLowerCase(),
-  adminAuthEmail: import.meta.env.VITE_ADMIN_AUTH_EMAIL?.trim() || 'pelailes@admin.sssb.test',
+  adminAuthEmail: import.meta.env.VITE_ADMIN_AUTH_EMAIL?.trim() || '',
+  adminAuthDomain:
+    import.meta.env.VITE_ADMIN_AUTH_DOMAIN?.trim().toLowerCase() || 'admin.sssb.test',
 } as const;
+
+export const normalizeAdminUsername = (username: string) => username.trim().toLowerCase();
+
+export const isValidAdminUsername = (username: string) =>
+  /^[a-z][a-z0-9._-]{2,39}$/.test(normalizeAdminUsername(username));
+
+export function authEmailForUsername(username: string): string {
+  const normalizedUsername = normalizeAdminUsername(username);
+  if (normalizedUsername === cmsConfiguration.adminUsername && cmsConfiguration.adminAuthEmail) {
+    return cmsConfiguration.adminAuthEmail;
+  }
+  return `${normalizedUsername}@${cmsConfiguration.adminAuthDomain}`;
+}
 
 let clientPromise: Promise<SupabaseClient> | null = null;
 

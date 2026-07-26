@@ -10,7 +10,12 @@ import {
 } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { getAdminProfile, type AdminProfile } from './contentRepository';
-import { cmsConfiguration, requireSupabase } from './supabaseClient';
+import {
+  authEmailForUsername,
+  cmsConfiguration,
+  isValidAdminUsername,
+  requireSupabase,
+} from './supabaseClient';
 
 type AuthStatus = 'unconfigured' | 'checking' | 'signed-out' | 'authorized';
 
@@ -121,13 +126,13 @@ export function AdminProvider({ children }: { children: ReactNode }) {
     setError(null);
     try {
       const client = await requireSupabase();
-      if (username.trim().toLowerCase() !== cmsConfiguration.adminUsername) {
+      if (!isValidAdminUsername(username)) {
         setError('Invalid administrator username or password.');
         return false;
       }
 
       const result = await client.auth.signInWithPassword({
-        email: cmsConfiguration.adminAuthEmail,
+        email: authEmailForUsername(username),
         password,
       });
       if (result.error || !result.data.session) {

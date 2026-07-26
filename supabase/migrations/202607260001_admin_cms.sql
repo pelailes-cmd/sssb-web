@@ -9,6 +9,7 @@ grant usage on schema private to authenticated;
 create table if not exists public.admin_users (
   user_id uuid primary key references auth.users (id) on delete cascade,
   username text not null unique check (username = lower(username) and length(username) between 3 and 40),
+  role text not null default 'editor' check (role in ('owner', 'editor')),
   created_at timestamptz not null default now()
 );
 
@@ -39,6 +40,32 @@ $$;
 
 revoke all on function private.is_admin() from public;
 grant execute on function private.is_admin() to authenticated;
+
+create or replace function private.is_owner()
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select exists (
+    select 1
+    from public.admin_users
+    where user_id = (select auth.uid())
+      and role = 'owner'
+  );
+$$;
+
+revoke all on function private.is_owner() from public;
+grant execute on function private.is_owner() to authenticated;
+
+drop policy if exists "Administrators can read their own role" on public.admin_users;
+drop policy if exists "Administrators can read permitted roles" on public.admin_users;
+create policy "Administrators can read permitted roles"
+on public.admin_users
+for select
+to authenticated
+using ((select auth.uid()) = user_id or (select private.is_owner()));
 
 create or replace function private.touch_updated_at()
 returns trigger
@@ -234,8 +261,10 @@ commit;
 -- After creating and auto-confirming the administrator in Authentication > Users,
 -- run the following statement separately to grant the account website-admin access:
 --
--- insert into public.admin_users (user_id, username)
--- select id, 'pelailes'
+-- insert into public.admin_users (user_id, username, role)
+-- select id, 'pelailes', 'owner'
 -- from auth.users
 -- where email = 'pelailes@admin.sssb.test'
--- on conflict (user_id) do update set username = excluded.username;
+-- on conflict (user_id) do update
+-- set username = excluded.username,
+--     role = excluded.role;
