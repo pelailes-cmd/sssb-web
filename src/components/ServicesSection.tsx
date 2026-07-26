@@ -1,5 +1,6 @@
 import { ArrowRight, Building2, Factory, Headphones, Home, ShieldCheck } from 'lucide-react';
-import { services, type Service } from '../data/siteData';
+import { useSiteContent } from '../cms/SiteContentContext';
+import type { Service } from '../data/siteData';
 import { SectionHeading } from './SectionHeading';
 
 const iconMap: Record<Service['icon'], typeof Home> = {
@@ -11,6 +12,7 @@ const iconMap: Record<Service['icon'], typeof Home> = {
 };
 
 export function ServicesSection() {
+  const { services } = useSiteContent();
   return (
     <section id="services" className="section services-section">
       <div className="container">

@@ -1,33 +1,25 @@
 import { ArrowRight, Check, Headphones, MapPin, ShieldCheck, Wrench } from 'lucide-react';
-import { assetUrl, business } from '../data/siteData';
+import { useSiteContent } from '../cms/SiteContentContext';
+import { assetUrl, type AboutCommitment } from '../data/siteData';
 import { SectionHeading } from './SectionHeading';
 
-const commitments = [
-  {
-    icon: Wrench,
-    title: 'Installation quality',
-    copy: 'The standard starts with dependable installation—not unsupported claims or shortcuts.',
-  },
-  {
-    icon: Headphones,
-    title: 'Responsive assistance',
-    copy: 'Customers need a reachable team when questions or maintenance concerns come up.',
-  },
-  {
-    icon: ShieldCheck,
-    title: 'Warranty support',
-    copy: 'Warranty concerns deserve clear assistance without inventing terms or durations.',
-  },
-];
+const commitmentIcons: Record<AboutCommitment['icon'], typeof Wrench> = {
+  tools: Wrench,
+  support: Headphones,
+  shield: ShieldCheck,
+};
 
 export function AboutSection() {
+  const { about } = useSiteContent();
+  if (!about) return null;
+
   return (
     <section id="about" className="section about-section">
       <div className="container">
         <SectionHeading
-          eyebrow="About Us"
-          title="Trust is built in the work that comes after the sale"
-          description="Smart Save Solar Bicol’s message is direct: reliable solar service combines quality installation with fast support, maintenance, and warranty assistance."
+          eyebrow={about.eyebrow}
+          title={about.title}
+          description={about.description}
         />
 
         <div className="about-layout">
@@ -35,20 +27,17 @@ export function AboutSection() {
             <div className="about-statement__mark">
               <img src={assetUrl('assets/brand/brand-mark.png')} alt="" loading="lazy" />
             </div>
-            <p className="eyebrow">{business.supportingName}</p>
-            <blockquote>
-              “A reliable solar company in Pili, Camarines Sur should provide not only quality
-              installation but also strong after-sales service.”
-            </blockquote>
+            <p className="eyebrow">{about.organizationName}</p>
+            <blockquote>“{about.quote}”</blockquote>
             <div className="about-statement__location">
               <MapPin aria-hidden="true" />
-              <span>{business.address}</span>
+              <span>{about.location}</span>
             </div>
           </div>
 
           <div className="commitment-list">
-            {commitments.map((commitment, index) => {
-              const Icon = commitment.icon;
+            {about.commitments.map((commitment, index) => {
+              const Icon = commitmentIcons[commitment.icon];
               return (
                 <article
                   key={commitment.title}

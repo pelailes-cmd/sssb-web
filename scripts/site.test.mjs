@@ -78,3 +78,33 @@ test('production support files and optimized assets exist', async () => {
     ].map((file) => access(path.join(root, file))),
   );
 });
+
+test('administrator content management is backend-authorized without committed passwords', async () => {
+  const files = [
+    'src/cms/AdminContext.tsx',
+    'src/cms/contentRepository.ts',
+    'src/cms/supabaseClient.ts',
+    'src/components/admin/AdminDashboard.tsx',
+    'src/components/admin/AdminLoginDialog.tsx',
+    '.env.example',
+    '.github/workflows/deploy-pages.yml',
+  ];
+  const source = (
+    await Promise.all(files.map((file) => readFile(path.join(root, file), 'utf8')))
+  ).join('\n');
+  const migration = await readFile(
+    path.join(root, 'supabase/migrations/202607260001_admin_cms.sql'),
+    'utf8',
+  );
+  const packageJson = JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8'));
+
+  assert.equal(typeof packageJson.dependencies['@supabase/supabase-js'], 'string');
+  assert.match(source, /signInWithPassword/);
+  assert.match(source, /VITE_SUPABASE_PUBLISHABLE_KEY/);
+  assert.doesNotMatch(source, /VITE_ADMIN_PASSWORD|ADMIN_PASSWORD|service[_-]?role\s*=/i);
+  assert.match(migration, /alter table public\.admin_users enable row level security/i);
+  assert.match(migration, /alter table public\.content_items enable row level security/i);
+  assert.match(migration, /private\.is_admin\(\)/i);
+  assert.match(migration, /function public\.reorder_content_items\(ordered_ids uuid\[\]\)/i);
+  assert.match(source, /rpc\('reorder_content_items'/);
+});

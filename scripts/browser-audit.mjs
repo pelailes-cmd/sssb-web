@@ -7,13 +7,19 @@ import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const screenshotDir = path.join(root, 'tmp', 'viewport-checks');
+const forceStaticFallback = process.env.SSSB_AUDIT_STATIC_FALLBACK === '1';
+const preferredBrowser = process.env.SSSB_AUDIT_BROWSER;
 const chromeCandidates = [
   'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
   'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
   'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe',
   'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
 ];
-const chromePath = chromeCandidates.find(existsSync);
+const orderedCandidates =
+  preferredBrowser === 'edge'
+    ? [...chromeCandidates.slice(2), ...chromeCandidates.slice(0, 2)]
+    : chromeCandidates;
+const chromePath = orderedCandidates.find(existsSync);
 
 if (!chromePath) throw new Error('Chrome or Edge was not found for the responsive browser audit.');
 
@@ -35,12 +41,22 @@ const chrome = spawn(
     '--disable-extensions',
     '--disable-background-networking',
     '--disable-component-update',
-    '--ignore-gpu-blocklist',
+    ...(forceStaticFallback
+      ? [
+          '--no-sandbox',
+          '--disable-gpu',
+          '--disable-webgl',
+          '--disable-webgl2',
+          '--disable-accelerated-2d-canvas',
+          '--disable-gpu-sandbox',
+        ]
+      : ['--ignore-gpu-blocklist']),
     '--hide-scrollbars',
     'about:blank',
   ],
   { windowsHide: true, stdio: ['ignore', 'ignore', 'pipe'] },
 );
+console.log(`Starting responsive audit with ${path.basename(chromePath)}.`);
 let browserDiagnostics = '';
 chrome.stderr?.on('data', (chunk) => {
   browserDiagnostics = `${browserDiagnostics}${String(chunk)}`.slice(-12000);
@@ -52,8 +68,17 @@ async function waitForDevToolsPort() {
   const portFile = path.join(profileDir, 'DevToolsActivePort');
   for (let attempt = 0; attempt < 80; attempt += 1) {
     if (existsSync(portFile)) {
-      const [port] = (await readFile(portFile, 'utf8')).trim().split(/\r?\n/);
-      if (port) return Number(port);
+      try {
+        const contents = await Promise.race([
+          readFile(portFile, 'utf8'),
+          delay(250).then(() => null),
+        ]);
+        if (!contents) continue;
+        const [port] = contents.trim().split(/\r?\n/);
+        if (port) return Number(port);
+      } catch (error) {
+        if (!['EBUSY', 'EPERM'].includes(error.code)) throw error;
+      }
     }
     await delay(100);
   }
@@ -100,14 +125,33 @@ function createCdpClient(webSocketUrl) {
 
   return {
     opened,
-    send(method, params = {}) {
+    send(method, params = {}, timeout = 15000) {
       if (socket.readyState !== WebSocket.OPEN) {
         return Promise.reject(new Error(`Cannot send ${method}; browser connection is closed.`));
       }
       const id = ++nextId;
       return new Promise((resolve, reject) => {
-        pending.set(id, { resolve, reject });
-        socket.send(JSON.stringify({ id, method, params }));
+        const timer = setTimeout(() => {
+          pending.delete(id);
+          reject(new Error(`Timed out sending ${method} to the browser.`));
+        }, timeout);
+        pending.set(id, {
+          resolve(value) {
+            clearTimeout(timer);
+            resolve(value);
+          },
+          reject(error) {
+            clearTimeout(timer);
+            reject(error);
+          },
+        });
+        try {
+          socket.send(JSON.stringify({ id, method, params }));
+        } catch (error) {
+          clearTimeout(timer);
+          pending.delete(id);
+          reject(error);
+        }
       });
     },
     once(method, timeout = 10000) {
@@ -156,12 +200,22 @@ let client;
 
 try {
   const port = await waitForDevToolsPort();
-  const targets = await (await fetch(`http://127.0.0.1:${port}/json/list`)).json();
+  console.log('Headless browser is ready.');
+  const targets = await (
+    await fetch(`http://127.0.0.1:${port}/json/list`, {
+      signal: AbortSignal.timeout(5000),
+    })
+  ).json();
   const pageTarget = targets.find((target) => target.type === 'page');
   if (!pageTarget?.webSocketDebuggerUrl) throw new Error('No browser page target was available.');
 
   client = createCdpClient(pageTarget.webSocketDebuggerUrl);
-  await client.opened;
+  await Promise.race([
+    client.opened,
+    delay(5000).then(() => {
+      throw new Error('Timed out opening the headless browser connection.');
+    }),
+  ]);
   await Promise.all([
     client.send('Page.enable'),
     client.send('Runtime.enable'),
@@ -175,6 +229,7 @@ try {
   });
 
   for (const width of viewportWidths) {
+    console.log(`Auditing ${width}px viewport...`);
     const height = width <= 390 ? 800 : width <= 768 ? 900 : 960;
     await client.send('Emulation.setDeviceMetricsOverride', {
       width,
@@ -212,6 +267,8 @@ try {
           modelPreviews: document.querySelectorAll('[data-model-preview]').length,
           modelFallbacks: document.querySelectorAll('[data-model-fallback]').length,
           formLocalOnlyNotice: document.querySelector('.inquiry-form__footer p')?.textContent.includes('local') ?? false,
+          headerAdminVisible: visible(document.querySelector('.header-admin')),
+          mobileAdminAvailable: Boolean(document.querySelector('.mobile-menu__admin')),
         };
       })()`,
     );
@@ -255,6 +312,8 @@ try {
     let productFilterFlow = null;
     let modelVariantFlow = null;
     let modelDialogFlow = null;
+    let adminLoginFlow = null;
+    let mobileAdminLoginFlow = null;
     if (width === 390) {
       await evaluate(
         client,
@@ -357,6 +416,69 @@ try {
       );
       await evaluate(client, `window.scrollTo(0, 0)`);
       await delay(100);
+
+      await evaluate(client, `document.querySelector('.menu-toggle')?.click()`);
+      await delay(520);
+      await evaluate(client, `document.querySelector('.mobile-menu__admin')?.click()`);
+      await delay(700);
+      mobileAdminLoginFlow = await evaluate(
+        client,
+        `(() => {
+          const dialog = document.querySelector('.admin-login');
+          return {
+            open: dialog?.open ?? false,
+            title: dialog?.querySelector('h2')?.textContent.trim(),
+            setupVisible: Boolean(dialog?.querySelector('.admin-login__setup')),
+            passwordFieldPresent: Boolean(dialog?.querySelector('input[type="password"]')),
+          };
+        })()`,
+      );
+      const mobileAdminScreenshot = await client.send('Page.captureScreenshot', {
+        format: 'png',
+        fromSurface: true,
+        captureBeyondViewport: false,
+      });
+      await writeFile(
+        path.join(screenshotDir, 'admin-login-390.png'),
+        Buffer.from(mobileAdminScreenshot.data, 'base64'),
+      );
+      await evaluate(
+        client,
+        `document.querySelector('.admin-login button[aria-label="Close administrator login"]')?.click()`,
+      );
+      await delay(150);
+    }
+
+    if (width === 1440) {
+      adminLoginFlow = await evaluate(
+        client,
+        `new Promise((resolve) => {
+          document.querySelector('.header-admin')?.click();
+          setTimeout(() => {
+            const dialog = document.querySelector('.admin-login');
+            resolve({
+              open: dialog?.open ?? false,
+              title: dialog?.querySelector('h2')?.textContent.trim(),
+              setupVisible: Boolean(dialog?.querySelector('.admin-login__setup')),
+              passwordFieldPresent: Boolean(dialog?.querySelector('input[type="password"]')),
+            });
+          }, 700);
+        })`,
+      );
+      const adminLoginScreenshot = await client.send('Page.captureScreenshot', {
+        format: 'png',
+        fromSurface: true,
+        captureBeyondViewport: false,
+      });
+      await writeFile(
+        path.join(screenshotDir, 'admin-login-1440.png'),
+        Buffer.from(adminLoginScreenshot.data, 'base64'),
+      );
+      await evaluate(
+        client,
+        `document.querySelector('.admin-login button[aria-label="Close administrator login"]')?.click()`,
+      );
+      await delay(150);
     }
 
     const screenshot = await client.send('Page.captureScreenshot', {
@@ -444,6 +566,8 @@ try {
       productFilterFlow,
       modelVariantFlow,
       modelDialogFlow,
+      adminLoginFlow,
+      mobileAdminLoginFlow,
     });
   }
 
@@ -460,31 +584,45 @@ try {
         issues.push('category filter card count');
       if (entry.productFilterFlow?.filtered?.firstCardOpacity < 0.99)
         issues.push('category filter cards stayed hidden');
-      if (entry.productFilterFlow?.filtered?.firstModelStatus !== 'ready')
+      if (!forceStaticFallback && entry.productFilterFlow?.filtered?.firstModelStatus !== 'ready')
         issues.push('filtered 3D preview did not become ready');
       if (entry.productFilterFlow?.reset?.cardCount !== 13) issues.push('All filter card count');
       if (entry.productFilterFlow?.reset?.firstCardOpacity < 0.99)
         issues.push('All filter cards stayed hidden');
       if (entry.productFilterFlow?.reset?.allPressed !== 'true')
         issues.push('All filter pressed state');
-      if (entry.modelVariantFlow?.before?.status !== 'ready')
+      if (!entry.mobileAdminLoginFlow?.open)
+        issues.push('mobile administrator login dialog did not open');
+      if (entry.mobileAdminLoginFlow?.title !== 'Administrator login')
+        issues.push('mobile administrator login heading');
+      if (
+        entry.mobileAdminLoginFlow?.setupVisible ===
+        entry.mobileAdminLoginFlow?.passwordFieldPresent
+      ) {
+        issues.push('mobile administrator configuration state');
+      }
+      if (!forceStaticFallback && entry.modelVariantFlow?.before?.status !== 'ready')
         issues.push('initial inverter 3D variant did not load');
-      if (entry.modelVariantFlow?.after?.status !== 'ready')
+      if (!forceStaticFallback && entry.modelVariantFlow?.after?.status !== 'ready')
         issues.push('next inverter 3D variant did not load');
       if (entry.modelVariantFlow?.before?.label === entry.modelVariantFlow?.after?.label)
         issues.push('inverter 3D variant did not change');
-      if (!entry.modelVariantFlow?.after?.canvasLabel?.includes('10kW'))
+      if (!forceStaticFallback && !entry.modelVariantFlow?.after?.canvasLabel?.includes('10kW'))
         issues.push('inverter 10kW model was not selected');
     }
     if (entry.width === 390 || entry.width === 1440) {
       if (!entry.modelDialogFlow?.open) issues.push('3D product dialog did not open');
-      if (entry.modelDialogFlow?.status !== 'ready')
+      if (!forceStaticFallback && entry.modelDialogFlow?.status !== 'ready')
         issues.push('3D product dialog model did not load');
-      if (!entry.modelDialogFlow?.canvasLabel?.includes('730W'))
+      if (!forceStaticFallback && !entry.modelDialogFlow?.canvasLabel?.includes('730W'))
         issues.push('3D product dialog loaded the wrong model');
     }
-    if (entry.width >= 1180 && entry.layout.desktopNavCount !== 8) issues.push('desktop nav count');
+    if (entry.width >= 1180) {
+      if (entry.layout.desktopNavCount !== 8) issues.push('desktop nav count');
+      if (!entry.layout.headerAdminVisible) issues.push('desktop administrator login button');
+    }
     if (entry.width < 1180) {
+      if (!entry.layout.mobileAdminAvailable) issues.push('mobile administrator login button');
       if (entry.layout.mobileMenuSize?.width < 44 || entry.layout.mobileMenuSize?.height < 44) {
         issues.push('mobile menu touch target');
       }
@@ -499,20 +637,32 @@ try {
         issues.push('menu focus was not restored');
       }
     }
+    if (entry.width === 1440) {
+      if (!entry.adminLoginFlow?.open) issues.push('administrator login dialog did not open');
+      if (entry.adminLoginFlow?.title !== 'Administrator login')
+        issues.push('administrator login heading');
+      if (entry.adminLoginFlow?.setupVisible === entry.adminLoginFlow?.passwordFieldPresent) {
+        issues.push('administrator configuration state');
+      }
+    }
     return issues.map((issue) => `${entry.width}px: ${issue}`);
   });
 
   if (runtimeErrors.length)
     failures.push(...runtimeErrors.map((error) => `browser error: ${error}`));
 
-  console.log(JSON.stringify({ report, runtimeErrors, screenshotDir }, null, 2));
+  console.log(
+    JSON.stringify({ report, runtimeErrors, screenshotDir, forceStaticFallback }, null, 2),
+  );
   if (failures.length) throw new Error(`Responsive audit failed:\n${failures.join('\n')}`);
 } catch (error) {
   if (browserDiagnostics.trim()) console.error(browserDiagnostics.trim());
   throw error;
 } finally {
   try {
-    await client?.send('Browser.close');
+    if (client) {
+      await Promise.race([client.send('Browser.close'), delay(2500)]);
+    }
   } catch {
     chrome.kill();
   }
@@ -520,6 +670,12 @@ try {
   if (chrome.exitCode === null) {
     await Promise.race([new Promise((resolve) => chrome.once('exit', resolve)), delay(2500)]);
   }
+  if (chrome.exitCode === null) {
+    chrome.kill();
+    await Promise.race([new Promise((resolve) => chrome.once('exit', resolve)), delay(1500)]);
+  }
+  chrome.stderr?.destroy();
+  chrome.unref();
   const resolvedProfile = path.resolve(profileDir);
   const resolvedPrefix = path.resolve(tempPrefix);
   if (!resolvedProfile.startsWith(resolvedPrefix)) {
@@ -528,7 +684,13 @@ try {
   } else {
     for (let attempt = 0; attempt < 8; attempt += 1) {
       try {
-        await rm(resolvedProfile, { recursive: true, force: true });
+        const cleanupResult = await Promise.race([
+          rm(resolvedProfile, { recursive: true, force: true }).then(() => 'removed'),
+          delay(1000).then(() => 'timed-out'),
+        ]);
+        if (cleanupResult === 'timed-out') {
+          console.warn('Browser profile cleanup timed out; the OS can release it later.');
+        }
         break;
       } catch (error) {
         if (error.code !== 'EBUSY' || attempt === 7) {
@@ -540,3 +702,7 @@ try {
     }
   }
 }
+
+// Headless Chromium can leave a Windows process handle open after Browser.close.
+// All audit work and cleanup are complete here, so end the CLI deterministically.
+process.exit(process.exitCode ?? 0);

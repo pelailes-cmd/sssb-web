@@ -9,7 +9,8 @@ import {
   Send,
 } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
-import { business, services } from '../data/siteData';
+import { useSiteContent } from '../cms/SiteContentContext';
+import { business } from '../data/siteData';
 import { SectionHeading } from './SectionHeading';
 
 type FormValues = {
@@ -62,6 +63,7 @@ function validateForm(values: FormValues): FormErrors {
 }
 
 export function ContactSection() {
+  const { services } = useSiteContent();
   const [values, setValues] = useState<FormValues>(initialValues);
   const [errors, setErrors] = useState<FormErrors>({});
   const [status, setStatus] = useState<FormStatus>('idle');

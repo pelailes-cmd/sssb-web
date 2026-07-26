@@ -1,9 +1,9 @@
 import { ArrowUpRight, Search, SlidersHorizontal } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
+import { useSiteContent } from '../cms/SiteContentContext';
 import {
   catalogCollectionModels,
   productCategories,
-  products,
   type Product,
   type ProductCategory,
 } from '../data/siteData';
@@ -14,6 +14,7 @@ import { SectionHeading } from './SectionHeading';
 type Filter = 'All' | ProductCategory;
 
 export function ProductCatalog() {
+  const { products } = useSiteContent();
   const [filter, setFilter] = useState<Filter>('All');
   const [query, setQuery] = useState('');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
@@ -35,7 +36,7 @@ export function ProductCatalog() {
           .some((value) => value?.toLowerCase().includes(normalizedQuery));
       return matchesFilter && matchesQuery;
     });
-  }, [filter, query]);
+  }, [filter, products, query]);
 
   const closeDialog = useCallback(() => setSelectedProduct(null), []);
 

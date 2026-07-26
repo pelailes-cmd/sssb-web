@@ -1,14 +1,15 @@
 import { ArrowRight, Download, FileSearch, FileText, FolderOpen, Search } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import { documents } from '../data/siteData';
+import { useSiteContent } from '../cms/SiteContentContext';
 import { SectionHeading } from './SectionHeading';
 
 export function DocumentationSection() {
+  const { documents } = useSiteContent();
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState('All');
   const categories = useMemo(
     () => ['All', ...Array.from(new Set(documents.map((document) => document.category)))],
-    [],
+    [documents],
   );
   const filteredDocuments = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -22,7 +23,7 @@ export function DocumentationSection() {
           .includes(normalizedQuery);
       return matchesCategory && matchesQuery;
     });
-  }, [category, query]);
+  }, [category, documents, query]);
 
   return (
     <section id="documentation" className="section documentation-section">

@@ -1,5 +1,6 @@
-import { Menu, PhoneCall, X } from 'lucide-react';
+import { LogIn, Menu, PhoneCall, ShieldCheck, X } from 'lucide-react';
 import { useEffect, useId, useRef, useState } from 'react';
+import { useAdmin } from '../cms/AdminContext';
 import { assetUrl, business, navItems } from '../data/siteData';
 
 const focusableSelector =
@@ -13,6 +14,7 @@ export function Header() {
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
+  const { isAdmin, openAdmin, status: adminStatus } = useAdmin();
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 20);
@@ -118,6 +120,20 @@ export function Header() {
         </a>
 
         <button
+          className="header-admin"
+          type="button"
+          disabled={adminStatus === 'checking'}
+          onClick={openAdmin}
+        >
+          {isAdmin ? (
+            <ShieldCheck aria-hidden="true" size={18} />
+          ) : (
+            <LogIn aria-hidden="true" size={18} />
+          )}
+          <span>{isAdmin ? 'Admin' : 'Login'}</span>
+        </button>
+
+        <button
           ref={menuButtonRef}
           className="menu-toggle"
           type="button"
@@ -174,6 +190,23 @@ export function Header() {
               ))}
             </ol>
           </nav>
+          <button
+            className="button button--ghost mobile-menu__admin"
+            type="button"
+            tabIndex={menuOpen ? 0 : -1}
+            disabled={adminStatus === 'checking'}
+            onClick={() => {
+              closeMenu();
+              openAdmin();
+            }}
+          >
+            {isAdmin ? (
+              <ShieldCheck aria-hidden="true" size={19} />
+            ) : (
+              <LogIn aria-hidden="true" size={19} />
+            )}
+            {isAdmin ? 'Open admin dashboard' : 'Administrator login'}
+          </button>
           <a
             className="button button--solar mobile-menu__call"
             href={business.phoneHref}

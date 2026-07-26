@@ -84,6 +84,23 @@ export type PortfolioEntry = {
   verifiedDetails: string[];
 };
 
+export type AboutCommitment = {
+  title: string;
+  copy: string;
+  icon: 'tools' | 'support' | 'shield';
+};
+
+export type AboutContent = {
+  id: string;
+  eyebrow: string;
+  title: string;
+  description: string;
+  organizationName: string;
+  quote: string;
+  location: string;
+  commitments: AboutCommitment[];
+};
+
 export const business = {
   name: 'Smart Save Solar Bicol',
   supportingName: 'Smart Save Ventures Corp.',
@@ -94,6 +111,35 @@ export const business = {
   mapHref:
     'https://www.google.com/maps/search/?api=1&query=Zone+1%2C+Caroyroyan%2C+Pili%2C+Camarines+Sur',
 } as const;
+
+export const aboutContent: AboutContent = {
+  id: 'about-main',
+  eyebrow: 'About Us',
+  title: 'Trust is built in the work that comes after the sale',
+  description:
+    'Smart Save Solar Bicol’s message is direct: reliable solar service combines quality installation with fast support, maintenance, and warranty assistance.',
+  organizationName: business.supportingName,
+  quote:
+    'A reliable solar company in Pili, Camarines Sur should provide not only quality installation but also strong after-sales service.',
+  location: business.address,
+  commitments: [
+    {
+      icon: 'tools',
+      title: 'Installation quality',
+      copy: 'The standard starts with dependable installation—not unsupported claims or shortcuts.',
+    },
+    {
+      icon: 'support',
+      title: 'Responsive assistance',
+      copy: 'Customers need a reachable team when questions or maintenance concerns come up.',
+    },
+    {
+      icon: 'shield',
+      title: 'Warranty support',
+      copy: 'Warranty concerns deserve clear assistance without inventing terms or durations.',
+    },
+  ],
+};
 
 export const navItems: NavItem[] = [
   { label: 'Home', href: '#home' },

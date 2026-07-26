@@ -1,5 +1,6 @@
 import { Phone } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
+import { useAdmin } from './cms/AdminContext';
 import { AboutSection } from './components/AboutSection';
 import { ContactSection } from './components/ContactSection';
 import { DocumentationSection } from './components/DocumentationSection';
@@ -13,6 +14,28 @@ import { PromotionsSection } from './components/PromotionsSection';
 import { ServicesSection } from './components/ServicesSection';
 import { business } from './data/siteData';
 import { useRevealAnimations } from './hooks/useRevealAnimations';
+
+const AdminLoginDialog = lazy(() =>
+  import('./components/admin/AdminLoginDialog').then((module) => ({
+    default: module.AdminLoginDialog,
+  })),
+);
+const AdminDashboard = lazy(() =>
+  import('./components/admin/AdminDashboard').then((module) => ({
+    default: module.AdminDashboard,
+  })),
+);
+
+function AdminOverlays() {
+  const { loginOpen, dashboardOpen } = useAdmin();
+
+  return (
+    <Suspense fallback={null}>
+      {loginOpen ? <AdminLoginDialog /> : null}
+      {dashboardOpen ? <AdminDashboard /> : null}
+    </Suspense>
+  );
+}
 
 export default function App() {
   const [heroIsVisible, setHeroIsVisible] = useState(true);
@@ -55,6 +78,7 @@ export default function App() {
         <AboutSection />
       </main>
       <Footer />
+      <AdminOverlays />
       <a
         className={`mobile-call-fab${showMobileCall ? ' is-visible' : ''}`}
         href={business.phoneHref}

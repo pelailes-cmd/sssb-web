@@ -1,8 +1,9 @@
 import { ArrowRight, Check, Info, PackageCheck, Snowflake, Sun } from 'lucide-react';
-import { promotions } from '../data/siteData';
+import { useSiteContent } from '../cms/SiteContentContext';
 import { SectionHeading } from './SectionHeading';
 
 export function PromotionsSection() {
+  const { promotions } = useSiteContent();
   return (
     <section id="promotions" className="section promotions-section">
       <div className="container">
