@@ -1,6 +1,6 @@
 import { Menu, PhoneCall, X } from 'lucide-react';
 import { useEffect, useId, useRef, useState } from 'react';
-import { business, navItems } from '../data/siteData';
+import { assetUrl, business, navItems } from '../data/siteData';
 
 const focusableSelector =
   'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
@@ -86,7 +86,7 @@ export function Header() {
     <header className={`site-header${scrolled ? ' site-header--scrolled' : ''}`}>
       <div className="site-header__inner">
         <a className="brand" href="#home" aria-label={`${business.name} home`}>
-          <img src="/assets/brand/brand-mark.png" alt="" width="48" height="48" />
+          <img src={assetUrl('assets/brand/brand-mark.png')} alt="" width="48" height="48" />
           <span className="brand__copy">
             <strong>Smart Save Solar</strong>
             <small>Bicol</small>

@@ -3,6 +3,8 @@ export type NavItem = {
   href: `#${string}`;
 };
 
+export const assetUrl = (path: string) => `${import.meta.env.BASE_URL}${path.replace(/^\/+/, '')}`;
+
 export type Service = {
   id: string;
   title: string;
@@ -22,7 +24,7 @@ export type ProductImage = {
 };
 
 export type ProductModel = {
-  src: `/assets/models/${string}.glb`;
+  src: string;
   label: string;
 };
 
@@ -148,7 +150,7 @@ export const services: Service[] = [
 ];
 
 const productModel = (file: string, label: string): ProductModel => ({
-  src: `/assets/models/${file}.glb`,
+  src: assetUrl(`assets/models/${file}.glb`),
   label,
 });
 
@@ -214,11 +216,11 @@ export const products: Product[] = [
       'A bifacial, double-glass AESOLAR module presented at 730W peak power in the supplied product artwork.',
     images: [
       {
-        src: '/assets/products/aesolar-730w.webp',
+        src: assetUrl('assets/products/aesolar-730w.webp'),
         alt: 'Front and rear view of an AESOLAR 730W bifacial double-glass solar panel',
       },
       {
-        src: '/assets/products/aesolar-730w-alt.webp',
+        src: assetUrl('assets/products/aesolar-730w-alt.webp'),
         alt: 'Alternate supplied view of the AESOLAR 730W solar panel',
       },
     ],
@@ -247,7 +249,7 @@ export const products: Product[] = [
       'A bifacial, double-glass AESOLAR module presented at 620W peak power in the supplied product artwork.',
     images: [
       {
-        src: '/assets/products/aesolar-620w.webp',
+        src: assetUrl('assets/products/aesolar-620w.webp'),
         alt: 'Front, side, and rear view of an AESOLAR 620W bifacial double-glass solar panel',
       },
     ],
@@ -274,7 +276,7 @@ export const products: Product[] = [
       'The supplied Solis hybrid inverter range is presented in three capacities: 8kW, 10kW, and 12kW.',
     images: [
       {
-        src: '/assets/products/solis-hybrid-inverters.webp',
+        src: assetUrl('assets/products/solis-hybrid-inverters.webp'),
         alt: 'Three white Solis hybrid inverters in 8kW, 10kW, and 12kW capacities',
       },
     ],
@@ -297,7 +299,7 @@ export const products: Product[] = [
       'Two Smart Save Solar hybrid inverter variants shown with source-listed numeric price values.',
     images: [
       {
-        src: '/assets/products/smart-save-hybrid-inverters.webp',
+        src: assetUrl('assets/products/smart-save-hybrid-inverters.webp'),
         alt: 'Two white Smart Save Solar hybrid inverters in 6kW and 10kW variants',
       },
     ],
@@ -319,7 +321,7 @@ export const products: Product[] = [
       'A grouped LiFePO4 range with one DJDC battery module and two LVTOPSUN power wall capacities.',
     images: [
       {
-        src: '/assets/products/lifepo4-batteries.webp',
+        src: assetUrl('assets/products/lifepo4-batteries.webp'),
         alt: 'DJDC 330Ah and LVTOPSUN 300Ah and 200Ah LiFePO4 battery products',
       },
     ],
@@ -340,7 +342,7 @@ export const products: Product[] = [
       'The supplied range groups AC/DC protection equipment, including breakers, surge protective devices, and a transfer switch.',
     images: [
       {
-        src: '/assets/products/protective-devices.webp',
+        src: assetUrl('assets/products/protective-devices.webp'),
         alt: 'Grouped AC and DC breakers, surge protective devices, and transfer switch',
       },
     ],
@@ -358,7 +360,7 @@ export const products: Product[] = [
       'A grouped range of mounting, connection, grounding, and roof-installation accessories shown in the supplied catalog image.',
     images: [
       {
-        src: '/assets/products/mounting-accessories.webp',
+        src: assetUrl('assets/products/mounting-accessories.webp'),
         alt: 'Grid of solar panel mounting hardware, connectors, grounding parts, screws, and tape',
       },
     ],
@@ -383,7 +385,7 @@ export const products: Product[] = [
       'A 2.0HP window-type air conditioner with the model and electrical details shown in the supplied product artwork.',
     images: [
       {
-        src: '/assets/products/window-aircon-2hp.webp',
+        src: assetUrl('assets/products/window-aircon-2hp.webp'),
         alt: 'Front and rear view of the KC-12K 2.0HP window-type air conditioner',
       },
     ],
@@ -409,7 +411,7 @@ export const products: Product[] = [
       'A 1.0HP window-type air conditioner with the model and electrical details shown in the supplied product artwork.',
     images: [
       {
-        src: '/assets/products/window-aircon-1hp.webp',
+        src: assetUrl('assets/products/window-aircon-1hp.webp'),
         alt: 'Front and rear view of the KC-09K 1.0HP window-type air conditioner',
       },
     ],
@@ -435,11 +437,11 @@ export const products: Product[] = [
       'A 1.0HP split-type air conditioner shown in both specification and source-listed sale artwork.',
     images: [
       {
-        src: '/assets/products/split-aircon-1hp.webp',
+        src: assetUrl('assets/products/split-aircon-1hp.webp'),
         alt: 'Indoor and outdoor units of the KF-09GW/IH009 1.0HP split-type air conditioner',
       },
       {
-        src: '/assets/products/split-aircon-1hp-sale.webp',
+        src: assetUrl('assets/products/split-aircon-1hp-sale.webp'),
         alt: 'Alternate supplied sale view of the 1.0HP split-type air conditioner',
       },
     ],
@@ -466,7 +468,7 @@ export const products: Product[] = [
       'A 1.5HP split-type air conditioner with the model and operating details shown in the supplied product artwork.',
     images: [
       {
-        src: '/assets/products/split-aircon-1-5hp.webp',
+        src: assetUrl('assets/products/split-aircon-1-5hp.webp'),
         alt: 'Indoor and outdoor units of the KF-12GW/H012A 1.5HP split-type air conditioner',
       },
     ],
@@ -492,7 +494,7 @@ export const products: Product[] = [
     summary: 'A Smart Save Solar flood-light set supplied with a solar panel and wireless remote.',
     images: [
       {
-        src: '/assets/products/floodlight-200w.webp',
+        src: assetUrl('assets/products/floodlight-200w.webp'),
         alt: 'Smart Save 200W solar flood light with solar panel and wireless remote',
       },
     ],
@@ -513,7 +515,7 @@ export const products: Product[] = [
     summary: 'A Smart Save Solar flood-light set supplied with a solar panel and wireless remote.',
     images: [
       {
-        src: '/assets/products/floodlight-100w.webp',
+        src: assetUrl('assets/products/floodlight-100w.webp'),
         alt: 'Smart Save 100W solar flood light with solar panel and wireless remote',
       },
     ],
@@ -546,7 +548,7 @@ export const promotions: Promotion[] = [
     statusLabel: 'Confirm availability',
     condition: '*PROMO IS UNTIL SUPPLIES LAST',
     image: {
-      src: '/assets/promotions/free-aircon-products.webp',
+      src: assetUrl('assets/promotions/free-aircon-products.webp'),
       alt: 'Window-type and split-type air conditioners pictured in the supplied free-aircon promotion',
     },
     offers: [

@@ -1,5 +1,5 @@
 import { ArrowRight, Check, Headphones, MapPin, ShieldCheck, Wrench } from 'lucide-react';
-import { business } from '../data/siteData';
+import { assetUrl, business } from '../data/siteData';
 import { SectionHeading } from './SectionHeading';
 
 const commitments = [
@@ -33,7 +33,7 @@ export function AboutSection() {
         <div className="about-layout">
           <div className="about-statement" data-reveal>
             <div className="about-statement__mark">
-              <img src="/assets/brand/brand-mark.png" alt="" loading="lazy" />
+              <img src={assetUrl('assets/brand/brand-mark.png')} alt="" loading="lazy" />
             </div>
             <p className="eyebrow">{business.supportingName}</p>
             <blockquote>

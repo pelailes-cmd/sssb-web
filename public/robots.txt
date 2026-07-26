@@ -1,4 +1,4 @@
 User-agent: *
-Allow: /
+Disallow: /
 
-# Add a Sitemap line after the final production domain is known.
+# Testing deployment: search indexing is intentionally disabled.

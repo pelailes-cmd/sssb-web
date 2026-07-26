@@ -1,5 +1,5 @@
 import { ArrowUp, MapPin, Phone } from 'lucide-react';
-import { business, navItems } from '../data/siteData';
+import { assetUrl, business, navItems } from '../data/siteData';
 
 export function Footer() {
   return (
@@ -7,7 +7,13 @@ export function Footer() {
       <div className="container site-footer__top">
         <div className="site-footer__brand">
           <a className="brand brand--footer" href="#home" aria-label={`${business.name} home`}>
-            <img src="/assets/brand/brand-mark.png" alt="" width="54" height="54" loading="lazy" />
+            <img
+              src={assetUrl('assets/brand/brand-mark.png')}
+              alt=""
+              width="54"
+              height="54"
+              loading="lazy"
+            />
             <span className="brand__copy">
               <strong>Smart Save Solar</strong>
               <small>Bicol</small>

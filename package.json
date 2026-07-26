@@ -8,6 +8,8 @@
     "dev": "vite --host 127.0.0.1",
     "prebuild": "npm run assets",
     "build": "tsc -b && vite build",
+    "prebuild:pages": "npm run assets",
+    "build:pages": "tsc -b && vite build --mode github-pages",
     "typecheck": "tsc -b --pretty false",
     "lint": "eslint .",
     "format": "prettier --check .",
