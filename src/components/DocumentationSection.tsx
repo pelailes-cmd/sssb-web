@@ -2,6 +2,7 @@ import { ArrowRight, Download, FileSearch, FileText, FolderOpen, Search } from '
 import { useMemo, useState } from 'react';
 import { useSiteContent } from '../cms/SiteContentContext';
 import { SectionHeading } from './SectionHeading';
+import { SectionScene } from './SectionScene';
 
 export function DocumentationSection() {
   const { documents } = useSiteContent();
@@ -27,6 +28,7 @@ export function DocumentationSection() {
 
   return (
     <section id="documentation" className="section documentation-section">
+      <SectionScene variant="documentation" />
       <div className="container">
         <SectionHeading
           eyebrow="Documentation & Datasheet"

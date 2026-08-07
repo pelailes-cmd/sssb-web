@@ -139,6 +139,86 @@ section[id] {
   padding-block: var(--space-section);
 }
 
+/* Section 3D backdrops */
+.section-scene {
+  --scene-opacity: 0.55;
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  /* clip-path rather than overflow, so the sticky canvas below still tracks the viewport. */
+  clip-path: inset(0);
+  pointer-events: none;
+}
+
+.section-scene__canvas {
+  /* Framed to the viewport instead of the full section, so tall sections are not shown zoomed in. */
+  position: sticky;
+  top: 0;
+  display: block;
+  width: 100%;
+  height: 100vh;
+  max-height: 100%;
+  opacity: var(--scene-opacity);
+  /* Feathered edges keep the backdrop from cutting hard against the section boundary. */
+  -webkit-mask-image: radial-gradient(140% 118% at 50% 45%, #000 52%, transparent 100%);
+  mask-image: radial-gradient(140% 118% at 50% 45%, #000 52%, transparent 100%);
+}
+
+.section-scene--overview {
+  --scene-opacity: 0.5;
+}
+
+.section-scene--services {
+  --scene-opacity: 0.85;
+}
+
+.section-scene--products {
+  --scene-opacity: 0.42;
+}
+
+.section-scene--promotions {
+  --scene-opacity: 0.6;
+}
+
+.section-scene--documentation {
+  --scene-opacity: 0.48;
+}
+
+.section-scene--portfolio {
+  --scene-opacity: 0.9;
+}
+
+.section-scene--contact {
+  --scene-opacity: 0.72;
+}
+
+.section-scene--about {
+  --scene-opacity: 0.5;
+}
+
+/* Section content always stacks above its own backdrop. */
+.section > .container {
+  position: relative;
+  z-index: 1;
+}
+
+@media (max-width: 720px) {
+  .section-scene {
+    --scene-opacity: 0.36;
+  }
+
+  .section-scene--services,
+  .section-scene--portfolio {
+    --scene-opacity: 0.6;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .section-scene {
+    --scene-opacity: 0.32;
+  }
+}
+
 .sr-only {
   position: absolute;
   width: 1px;

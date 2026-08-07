@@ -1,11 +1,13 @@
 import { ArrowRight, Check, Info, PackageCheck, Snowflake, Sun } from 'lucide-react';
 import { useSiteContent } from '../cms/SiteContentContext';
 import { SectionHeading } from './SectionHeading';
+import { SectionScene } from './SectionScene';
 
 export function PromotionsSection() {
   const { promotions } = useSiteContent();
   return (
     <section id="promotions" className="section promotions-section">
+      <SectionScene variant="promotions" />
       <div className="container">
         <SectionHeading
           eyebrow="Supplied offer"

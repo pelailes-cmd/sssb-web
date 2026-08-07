@@ -1,11 +1,13 @@
 import { ArrowRight, Camera, ImagePlus, MapPin, Zap } from 'lucide-react';
 import { useSiteContent } from '../cms/SiteContentContext';
 import { SectionHeading } from './SectionHeading';
+import { SectionScene } from './SectionScene';
 
 export function PortfolioSection() {
   const { portfolioItems } = useSiteContent();
   return (
     <section id="portfolio" className="section portfolio-section">
+      <SectionScene variant="portfolio" />
       <div className="container">
         <SectionHeading
           eyebrow="Portfolio"

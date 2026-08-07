@@ -2,6 +2,7 @@ import { ArrowRight, Check, Headphones, MapPin, ShieldCheck, Wrench } from 'luci
 import { useSiteContent } from '../cms/SiteContentContext';
 import { assetUrl, type AboutCommitment } from '../data/siteData';
 import { SectionHeading } from './SectionHeading';
+import { SectionScene } from './SectionScene';
 
 const commitmentIcons: Record<AboutCommitment['icon'], typeof Wrench> = {
   tools: Wrench,
@@ -15,6 +16,7 @@ export function AboutSection() {
 
   return (
     <section id="about" className="section about-section">
+      <SectionScene variant="about" />
       <div className="container">
         <SectionHeading
           eyebrow={about.eyebrow}

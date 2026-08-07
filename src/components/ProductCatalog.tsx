@@ -10,6 +10,7 @@ import {
 import { ProductDialog } from './ProductDialog';
 import { ProductModelPreview } from './ProductModelPreview';
 import { SectionHeading } from './SectionHeading';
+import { SectionScene } from './SectionScene';
 
 type Filter = 'All' | ProductCategory;
 
@@ -42,6 +43,7 @@ export function ProductCatalog() {
 
   return (
     <section id="products" className="section products-section">
+      <SectionScene variant="products" />
       <div className="container">
         <div className="products-section__heading-row">
           <SectionHeading

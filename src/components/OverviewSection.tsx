@@ -8,6 +8,7 @@ import {
   Wrench,
 } from 'lucide-react';
 import { business } from '../data/siteData';
+import { SectionScene } from './SectionScene';
 
 const pathwayCards = [
   {
@@ -36,6 +37,7 @@ const pathwayCards = [
 export function OverviewSection() {
   return (
     <section id="home-overview" className="section overview-section">
+      <SectionScene variant="overview" />
       <div className="container">
         <div className="overview-intro">
           <div className="overview-intro__copy" data-reveal>
