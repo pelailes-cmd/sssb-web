@@ -2,6 +2,7 @@ import { ArrowRight, Building2, Factory, Headphones, Home, ShieldCheck } from 'l
 import { useSiteContent } from '../cms/SiteContentContext';
 import type { Service } from '../data/siteData';
 import { SectionHeading } from './SectionHeading';
+import { SectionScene } from './SectionScene';
 
 const iconMap: Record<Service['icon'], typeof Home> = {
   home: Home,
@@ -15,6 +16,7 @@ export function ServicesSection() {
   const { services } = useSiteContent();
   return (
     <section id="services" className="section services-section">
+      <SectionScene variant="services" />
       <div className="container">
         <div className="services-section__top">
           <SectionHeading

@@ -12,6 +12,7 @@ import { useState, type FormEvent } from 'react';
 import { useSiteContent } from '../cms/SiteContentContext';
 import { business } from '../data/siteData';
 import { SectionHeading } from './SectionHeading';
+import { SectionScene } from './SectionScene';
 
 type FormValues = {
   name: string;
@@ -102,6 +103,7 @@ export function ContactSection() {
 
   return (
     <section id="contact" className="section contact-section">
+      <SectionScene variant="contact" />
       <div className="container">
         <SectionHeading
           eyebrow="Contact Us"
