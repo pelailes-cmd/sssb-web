@@ -6386,3 +6386,249 @@ dialog.admin-dashboard[open] {
     padding-bottom: 5.5rem;
   }
 }
+
+/* Media and Content */
+.media-section {
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 88% 12%, rgba(120, 217, 233, 0.16), transparent 26%),
+    var(--color-white);
+}
+
+.media-carousel {
+  position: relative;
+  margin-top: 2.5rem;
+}
+
+.media-track {
+  --media-per-view: 3;
+  --media-gap: clamp(0.9rem, 1.6vw, 1.4rem);
+  display: flex;
+  gap: var(--media-gap);
+  /* A real scroll container: touch swiping, momentum and keyboard scrolling come from the browser,
+     and a vertical swipe still scrolls the page rather than being captured here. */
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 0.4rem;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+}
+
+.media-track::-webkit-scrollbar {
+  display: none;
+}
+
+.media-track:focus-visible {
+  border-radius: var(--radius-md);
+  outline: 3px solid var(--color-blue-500);
+  outline-offset: 6px;
+}
+
+.media-track.is-dragging {
+  scroll-snap-type: none;
+  cursor: grabbing;
+  user-select: none;
+}
+
+.media-card {
+  display: flex;
+  flex: 0 0 calc((100% - (var(--media-per-view) - 1) * var(--media-gap)) / var(--media-per-view));
+  min-width: 0;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  scroll-snap-align: start;
+}
+
+.media-embed {
+  position: relative;
+  /* A fixed height keeps the row even and reserves the space before the embed arrives, so nothing
+     shifts on the page as each iframe loads. */
+  height: clamp(320px, 42vh, 460px);
+  overflow: hidden;
+  background: var(--color-background);
+}
+
+.media-embed__frame {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  border: 0;
+  transform-origin: center;
+}
+
+.media-embed__state,
+.media-embed__message {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  margin: 0;
+  padding: 1rem;
+  color: var(--color-muted);
+  background: var(--color-background);
+  font-size: 0.82rem;
+  text-align: center;
+}
+
+.media-embed__state--error {
+  color: var(--color-text);
+}
+
+.media-embed__spinner {
+  width: 1.6rem;
+  height: 1.6rem;
+  border: 2px solid var(--color-border);
+  border-top-color: var(--color-blue-500);
+  border-radius: 50%;
+  animation: media-spin 900ms linear infinite;
+}
+
+@keyframes media-spin {
+  to {
+    rotate: 360deg;
+  }
+}
+
+.media-card__caption {
+  padding: 0.95rem 1.1rem 1.15rem;
+  border-top: 1px solid var(--color-border);
+}
+
+.media-card__caption h3 {
+  margin: 0;
+  font-size: 0.95rem;
+  line-height: 1.35;
+}
+
+.media-card__caption p {
+  margin: 0.3rem 0 0;
+  color: var(--color-muted);
+  font-size: 0.82rem;
+}
+
+.media-carousel__controls {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 1.2rem;
+}
+
+.media-carousel__controls .icon-button {
+  color: var(--color-navy-900);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+
+.media-carousel__controls .icon-button:hover {
+  border-color: var(--color-blue-500);
+  background: var(--color-cyan-100);
+}
+
+.media-empty {
+  display: grid;
+  justify-items: center;
+  gap: 0.6rem;
+  margin-top: 2.5rem;
+  padding: 3.5rem 1.5rem;
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-lg);
+  text-align: center;
+}
+
+.media-empty svg {
+  width: 2.2rem;
+  height: 2.2rem;
+  color: var(--color-blue-500);
+}
+
+.media-empty h3 {
+  margin: 0;
+  font-size: 1.08rem;
+}
+
+.media-empty p {
+  max-width: 46ch;
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 0.9rem;
+}
+
+/* Administrator media fields */
+.admin-media-url {
+  display: block;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-background);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.74rem;
+  overflow-wrap: anywhere;
+}
+
+.admin-media-preview {
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-background);
+}
+
+.admin-media-preview__stage {
+  position: relative;
+  overflow: hidden;
+}
+
+.admin-media-preview__stage iframe {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  border: 0;
+  transform-origin: center;
+}
+
+.admin-media-preview__empty {
+  margin: 0;
+  padding: 2.5rem 1rem;
+  color: var(--color-muted);
+  font-size: 0.82rem;
+  text-align: center;
+}
+
+@media (max-width: 1023px) {
+  .media-track {
+    --media-per-view: 2;
+  }
+}
+
+@media (max-width: 699px) {
+  .media-track {
+    --media-per-view: 1;
+  }
+
+  .media-carousel__controls {
+    justify-content: center;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .media-track {
+    scroll-behavior: auto;
+  }
+
+  .media-embed__spinner {
+    animation-duration: 2.4s;
+  }
+}
+
+@media (forced-colors: active) {
+  .media-card,
+  .media-embed,
+  .admin-media-preview {
+    border: 1px solid CanvasText !important;
+  }
+}

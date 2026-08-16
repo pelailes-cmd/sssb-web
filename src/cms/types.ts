@@ -1,7 +1,9 @@
+import { isAllowedEmbedUrl, mediaPlatforms, type MediaPlatform } from '../lib/mediaEmbed';
 import {
   productCategories,
   type AboutContent,
   type DocumentEntry,
+  type MediaItem,
   type PortfolioEntry,
   type Product,
   type Promotion,
@@ -14,6 +16,7 @@ export const contentTypes = [
   'portfolio',
   'services',
   'documents',
+  'media',
   'about',
 ] as const;
 
@@ -25,6 +28,7 @@ export type ContentDataByType = {
   portfolio: PortfolioEntry;
   services: Service;
   documents: DocumentEntry;
+  media: MediaItem;
   about: AboutContent;
 };
 
@@ -69,6 +73,7 @@ export const contentTypeLabels: Record<ContentType, string> = {
   portfolio: 'Portfolio',
   services: 'Services',
   documents: 'Documentation & Datasheets',
+  media: 'Media and Content',
   about: 'About Us',
 };
 
@@ -147,6 +152,21 @@ const isAbout = (value: Record<string, unknown>) =>
       ['tools', 'support', 'shield'].includes(commitment.icon as string),
   );
 
+/**
+ * Re-checks the embed allowlist when a stored record is read, not only when it is written. A row
+ * inserted directly through the API rather than the admin form is therefore still dropped before
+ * it can be rendered, and the website can only ever build iframes for the listed platforms.
+ */
+const isMediaItem = (value: Record<string, unknown>) =>
+  hasStrings(value, ['id', 'title', 'platform', 'embedUrl']) &&
+  mediaPlatforms.includes(value.platform as MediaPlatform) &&
+  isAllowedEmbedUrl(value.embedUrl) &&
+  typeof value.embedWidth === 'number' &&
+  value.embedWidth > 0 &&
+  typeof value.embedHeight === 'number' &&
+  value.embedHeight > 0 &&
+  (value.description === undefined || isString(value.description));
+
 export function isContentData(type: ContentType, value: unknown): value is ContentData {
   if (!isRecord(value)) return false;
 
@@ -161,6 +181,8 @@ export function isContentData(type: ContentType, value: unknown): value is Conte
       return isService(value);
     case 'documents':
       return isDocument(value);
+    case 'media':
+      return isMediaItem(value);
     case 'about':
       return isAbout(value);
   }

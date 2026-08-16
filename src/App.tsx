@@ -8,6 +8,7 @@ import { Footer } from './components/Footer';
 import { Header } from './components/Header';
 import { Hero } from './components/Hero';
 import { OverviewSection } from './components/OverviewSection';
+import { MediaSection } from './components/media/MediaSection';
 import { PortfolioSection } from './components/PortfolioSection';
 import { ProductCatalog } from './components/ProductCatalog';
 import { PromotionsSection } from './components/PromotionsSection';
@@ -76,6 +77,7 @@ export default function App() {
         <QuotationSection />
         <DocumentationSection />
         <PortfolioSection />
+        <MediaSection />
         <ContactSection />
         <AboutSection />
       </main>
