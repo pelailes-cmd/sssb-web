@@ -90,8 +90,8 @@ export function Header() {
         <a className="brand" href="#home" aria-label={`${business.name} home`}>
           <img src={assetUrl('assets/brand/brand-mark.png')} alt="" width="48" height="48" />
           <span className="brand__copy">
-            <strong>Smart Save Solar</strong>
-            <small>Bicol</small>
+            <strong>Smart Save</strong>
+            <small>Solar</small>
           </span>
         </a>
 

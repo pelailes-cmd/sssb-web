@@ -1,10 +1,21 @@
-import { ArrowRight, Check, Info, PackageCheck, Snowflake, Sun } from 'lucide-react';
+import { ArrowRight, Check, Info, MapPinOff, PackageCheck, Snowflake, Sun } from 'lucide-react';
+import { useMemo } from 'react';
+import { useServiceArea } from '../cms/ServiceAreaContext';
 import { useSiteContent } from '../cms/SiteContentContext';
+import { isAvailableInArea, serviceAreaOptions } from '../data/siteData';
 import { SectionHeading } from './SectionHeading';
 import { SectionScene } from './SectionScene';
+import { ServiceAreaFilter } from './ServiceAreaFilter';
 
 export function PromotionsSection() {
   const { promotions } = useSiteContent();
+  const { area } = useServiceArea();
+  const visiblePromotions = useMemo(
+    () => promotions.filter((promotion) => isAvailableInArea(promotion, area)),
+    [area, promotions],
+  );
+  const areaPlace = serviceAreaOptions.find((option) => option.code === area)?.place;
+
   return (
     <section id="promotions" className="section promotions-section">
       <SectionScene variant="promotions" />
@@ -15,7 +26,9 @@ export function PromotionsSection() {
           description="The promotion below is rebuilt from the supplied poster as responsive native content. Its availability date was not provided, so confirmation is required before relying on the offer."
         />
 
-        {promotions.map((promotion) => (
+        <ServiceAreaFilter sectionLabel="promotions" />
+
+        {visiblePromotions.map((promotion) => (
           <article
             key={promotion.id}
             className="promotion-card"
@@ -76,6 +89,17 @@ export function PromotionsSection() {
             </div>
           </article>
         ))}
+
+        {visiblePromotions.length ? null : (
+          <div className="area-empty" role="status" data-reveal>
+            <MapPinOff aria-hidden="true" />
+            <h3>No promotions are running in {areaPlace} right now.</h3>
+            <p>
+              Select “All locations” to see every published offer, or contact the team to ask what
+              is currently available in your area.
+            </p>
+          </div>
+        )}
       </div>
     </section>
   );

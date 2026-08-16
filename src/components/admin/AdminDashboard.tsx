@@ -1,5 +1,6 @@
 import {
   BookOpenText,
+  Calculator,
   ChevronDown,
   ChevronUp,
   CircleUserRound,
@@ -15,6 +16,7 @@ import {
   Plus,
   RefreshCw,
   Save,
+  ScrollText,
   Settings2,
   Trash2,
   UsersRound,
@@ -40,7 +42,10 @@ import {
   type ContentType,
   type ManagedContentItem,
 } from '../../cms/types';
+import { business } from '../../data/siteData';
 import { ContentEditor } from './ContentEditor';
+import { QuotationPricingPanel } from './QuotationPricingPanel';
+import { QuotationRequestsPanel } from './QuotationRequestsPanel';
 import { TeamAccessPanel } from './TeamAccessPanel';
 
 const typeIcons = {
@@ -153,6 +158,16 @@ function PasswordPanel({ onDone }: { onDone: () => void }) {
   );
 }
 
+/** Which workspace view is showing. One value keeps the mutually exclusive panels in step. */
+type WorkspacePanel = 'content' | 'security' | 'team' | 'pricing' | 'quotations';
+
+const panelTitles: Record<Exclude<WorkspacePanel, 'content'>, string> = {
+  security: 'Account security',
+  team: 'Team access',
+  pricing: 'Quotation pricing',
+  quotations: 'Quotation requests',
+};
+
 export function AdminDashboard() {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const { dashboardOpen, closeDashboard, profile, isAdmin, logout, isBusy: authBusy } = useAdmin();
@@ -164,8 +179,7 @@ export function AdminDashboard() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [editing, setEditing] = useState<ManagedContentItem | null | undefined>(undefined);
-  const [securityOpen, setSecurityOpen] = useState(false);
-  const [teamOpen, setTeamOpen] = useState(false);
+  const [panel, setPanel] = useState<WorkspacePanel>('content');
 
   const load = useCallback(async () => {
     if (!isAdmin) return;
@@ -196,11 +210,17 @@ export function AdminDashboard() {
 
   const dismissDashboard = useCallback(() => {
     setEditing(undefined);
-    setSecurityOpen(false);
-    setTeamOpen(false);
+    setPanel('content');
     setNotice(null);
     closeDashboard();
   }, [closeDashboard]);
+
+  const openPanel = (next: WorkspacePanel) => {
+    setPanel(next);
+    setEditing(undefined);
+    setError(null);
+    setNotice(null);
+  };
 
   const currentItems = useMemo(
     () =>
@@ -346,7 +366,7 @@ export function AdminDashboard() {
             </span>
             <div>
               <strong>Website Admin</strong>
-              <small>Smart Save Solar Bicol</small>
+              <small>{business.name}</small>
             </div>
           </div>
 
@@ -358,16 +378,11 @@ export function AdminDashboard() {
                 <button
                   key={type}
                   type="button"
-                  className={selectedType === type && !securityOpen && !teamOpen ? 'is-active' : ''}
-                  aria-current={
-                    selectedType === type && !securityOpen && !teamOpen ? 'page' : undefined
-                  }
+                  className={selectedType === type && panel === 'content' ? 'is-active' : ''}
+                  aria-current={selectedType === type && panel === 'content' ? 'page' : undefined}
                   onClick={() => {
                     setSelectedType(type);
-                    setEditing(undefined);
-                    setSecurityOpen(false);
-                    setTeamOpen(false);
-                    setError(null);
+                    openPanel('content');
                   }}
                 >
                   <Icon aria-hidden="true" />
@@ -386,17 +401,29 @@ export function AdminDashboard() {
                 <small>{profile?.role === 'owner' ? 'Owner' : 'Content manager'}</small>
               </span>
             </div>
+            <button
+              type="button"
+              className={panel === 'quotations' ? 'is-active' : ''}
+              onClick={() => openPanel('quotations')}
+            >
+              <ScrollText aria-hidden="true" />
+              Quotations
+            </button>
             {profile?.role === 'owner' ? (
               <button
                 type="button"
-                className={teamOpen ? 'is-active' : ''}
-                onClick={() => {
-                  setTeamOpen(true);
-                  setSecurityOpen(false);
-                  setEditing(undefined);
-                  setError(null);
-                  setNotice(null);
-                }}
+                className={panel === 'pricing' ? 'is-active' : ''}
+                onClick={() => openPanel('pricing')}
+              >
+                <Calculator aria-hidden="true" />
+                Pricing
+              </button>
+            ) : null}
+            {profile?.role === 'owner' ? (
+              <button
+                type="button"
+                className={panel === 'team' ? 'is-active' : ''}
+                onClick={() => openPanel('team')}
               >
                 <UsersRound aria-hidden="true" />
                 Team access
@@ -404,14 +431,8 @@ export function AdminDashboard() {
             ) : null}
             <button
               type="button"
-              className={securityOpen ? 'is-active' : ''}
-              onClick={() => {
-                setSecurityOpen(true);
-                setTeamOpen(false);
-                setEditing(undefined);
-                setError(null);
-                setNotice(null);
-              }}
+              className={panel === 'security' ? 'is-active' : ''}
+              onClick={() => openPanel('security')}
             >
               <Settings2 aria-hidden="true" />
               Security
@@ -428,15 +449,11 @@ export function AdminDashboard() {
             <div>
               <p className="eyebrow">Content manager</p>
               <h2 id="admin-dashboard-title">
-                {teamOpen
-                  ? 'Team access'
-                  : securityOpen
-                    ? 'Account security'
-                    : contentTypeLabels[selectedType]}
+                {panel === 'content' ? contentTypeLabels[selectedType] : panelTitles[panel]}
               </h2>
             </div>
             <div>
-              {!securityOpen && !teamOpen && editing === undefined && canAdd ? (
+              {panel === 'content' && editing === undefined && canAdd ? (
                 <button
                   className="button button--primary"
                   type="button"
@@ -458,23 +475,27 @@ export function AdminDashboard() {
           </header>
 
           <main className="admin-workspace__main">
-            {error && editing === undefined && !securityOpen && !teamOpen ? (
+            {error && editing === undefined && panel === 'content' ? (
               <div className="admin-notice admin-notice--error" role="alert">
                 <strong>Something needs attention</strong>
                 <p>{error}</p>
               </div>
             ) : null}
-            {notice && editing === undefined && !securityOpen && !teamOpen ? (
+            {notice && editing === undefined && panel === 'content' ? (
               <div className="admin-notice" role="status">
                 <strong>Saved</strong>
                 <p>{notice}</p>
               </div>
             ) : null}
 
-            {teamOpen && profile ? (
+            {panel === 'quotations' ? (
+              <QuotationRequestsPanel />
+            ) : panel === 'pricing' ? (
+              <QuotationPricingPanel />
+            ) : panel === 'team' && profile ? (
               <TeamAccessPanel currentUserId={profile.userId} />
-            ) : securityOpen ? (
-              <PasswordPanel onDone={() => setSecurityOpen(false)} />
+            ) : panel === 'security' ? (
+              <PasswordPanel onDone={() => setPanel('content')} />
             ) : editing !== undefined ? (
               <ContentEditor
                 key={editing?.recordId ?? `new-${selectedType}`}

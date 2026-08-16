@@ -5,12 +5,39 @@ export type NavItem = {
 
 export const assetUrl = (path: string) => `${import.meta.env.BASE_URL}${path.replace(/^\/+/, '')}`;
 
+export type ServiceAreaCode = 'pili' | 'lipa';
+
+export type ServiceAreaOption = {
+  code: ServiceAreaCode;
+  /** Wording used on the public filter control. */
+  label: string;
+  /** Place name on its own, for summaries and generated documents. */
+  place: string;
+};
+
+export const serviceAreaOptions: ServiceAreaOption[] = [
+  { code: 'pili', label: 'Available in Pili, Camarines Sur', place: 'Pili, Camarines Sur' },
+  { code: 'lipa', label: 'Available in Lipa City, Batangas', place: 'Lipa City, Batangas' },
+];
+
+export const serviceAreaCodes = serviceAreaOptions.map((option) => option.code);
+
+/**
+ * A record with no explicit list is offered everywhere. Older records were saved before service
+ * areas existed, so treating an absent list as "all areas" keeps them visible.
+ */
+export const isAvailableInArea = (
+  item: { availability?: ServiceAreaCode[] },
+  area: ServiceAreaCode | null,
+) => !area || !item.availability?.length || item.availability.includes(area);
+
 export type Service = {
   id: string;
   title: string;
   description: string;
   icon: 'home' | 'building' | 'factory' | 'tools' | 'shield';
   source: 'cover' | 'business-message';
+  availability?: ServiceAreaCode[];
 };
 
 export type ProductSpec = {
@@ -40,6 +67,7 @@ export type Product = {
   specs: ProductSpec[];
   sourceNote?: string;
   featured?: boolean;
+  availability?: ServiceAreaCode[];
 };
 
 export type ProductCategory =
@@ -65,6 +93,7 @@ export type Promotion = {
     inclusion: string;
   }>;
   highlights: string[];
+  availability?: ServiceAreaCode[];
 };
 
 export type DocumentEntry = {
@@ -102,7 +131,7 @@ export type AboutContent = {
 };
 
 export const business = {
-  name: 'Smart Save Solar Bicol',
+  name: 'Smart Save Solar',
   supportingName: 'Smart Save Ventures Corp.',
   tagline: 'Solar You Can Trust',
   phoneDisplay: '0997-688-4865',
@@ -117,7 +146,7 @@ export const aboutContent: AboutContent = {
   eyebrow: 'About Us',
   title: 'Trust is built in the work that comes after the sale',
   description:
-    'Smart Save Solar Bicol’s message is direct: reliable solar service combines quality installation with fast support, maintenance, and warranty assistance.',
+    'Smart Save Solar’s message is direct: reliable solar service combines quality installation with fast support, maintenance, and warranty assistance.',
   organizationName: business.supportingName,
   quote:
     'A reliable solar company in Pili, Camarines Sur should provide not only quality installation but also strong after-sales service.',
@@ -146,6 +175,7 @@ export const navItems: NavItem[] = [
   { label: 'Services', href: '#services' },
   { label: 'Products', href: '#products' },
   { label: 'Promotions', href: '#promotions' },
+  { label: 'Quotation', href: '#quotation' },
   { label: 'Documentation & Datasheet', href: '#documentation' },
   { label: 'Portfolio', href: '#portfolio' },
   { label: 'Contact Us', href: '#contact' },

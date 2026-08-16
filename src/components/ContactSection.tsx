@@ -116,7 +116,7 @@ export function ContactSection() {
           <div className="contact-details" data-reveal>
             <div className="contact-details__intro">
               <p className="eyebrow">Verified from supplied artwork</p>
-              <h3>Smart Save Solar Bicol</h3>
+              <h3>{business.name}</h3>
               <p>
                 For the fastest confirmed contact path, call the number printed consistently across
                 the supplied cover, product, and promotion materials.
@@ -128,7 +128,7 @@ export function ContactSection() {
                 <Phone aria-hidden="true" />
               </span>
               <div>
-                <small>Call Smart Save Solar Bicol</small>
+                <small>Call {business.name}</small>
                 <strong>{business.phoneDisplay}</strong>
               </div>
               <ArrowRight aria-hidden="true" />

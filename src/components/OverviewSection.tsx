@@ -46,8 +46,8 @@ export function OverviewSection() {
           </div>
           <div className="overview-intro__body" data-reveal>
             <p>
-              Smart Save Solar Bicol presents dependable solar solutions with a clear service
-              promise: installation quality matters, and so does what happens next.
+              {business.name} presents dependable solar solutions with a clear service promise:
+              installation quality matters, and so does what happens next.
             </p>
             <p>
               Responsive maintenance, fast assistance, and warranty support help keep the customer

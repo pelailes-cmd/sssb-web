@@ -1,8 +1,10 @@
 import { ArrowUpRight, Search, SlidersHorizontal } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
+import { useServiceArea } from '../cms/ServiceAreaContext';
 import { useSiteContent } from '../cms/SiteContentContext';
 import {
   catalogCollectionModels,
+  isAvailableInArea,
   productCategories,
   type Product,
   type ProductCategory,
@@ -11,18 +13,25 @@ import { ProductDialog } from './ProductDialog';
 import { ProductModelPreview } from './ProductModelPreview';
 import { SectionHeading } from './SectionHeading';
 import { SectionScene } from './SectionScene';
+import { ServiceAreaFilter } from './ServiceAreaFilter';
 
 type Filter = 'All' | ProductCategory;
 
 export function ProductCatalog() {
   const { products } = useSiteContent();
+  const { area } = useServiceArea();
   const [filter, setFilter] = useState<Filter>('All');
   const [query, setQuery] = useState('');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 
+  const areaProducts = useMemo(
+    () => products.filter((product) => isAvailableInArea(product, area)),
+    [area, products],
+  );
+
   const visibleProducts = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
-    return products.filter((product) => {
+    return areaProducts.filter((product) => {
       const matchesFilter = filter === 'All' || product.category === filter;
       const matchesQuery =
         !normalizedQuery ||
@@ -37,7 +46,7 @@ export function ProductCatalog() {
           .some((value) => value?.toLowerCase().includes(normalizedQuery));
       return matchesFilter && matchesQuery;
     });
-  }, [filter, products, query]);
+  }, [areaProducts, filter, query]);
 
   const closeDialog = useCallback(() => setSelectedProduct(null), []);
 
@@ -52,10 +61,12 @@ export function ProductCatalog() {
             description="Explore matching products as interactive 3D models, with source-verified specifications rebuilt as accessible native content."
           />
           <div className="products-section__count" data-reveal>
-            <strong>{products.length}</strong>
+            <strong>{areaProducts.length}</strong>
             <span>product groups</span>
           </div>
         </div>
+
+        <ServiceAreaFilter sectionLabel="products" />
 
         <div className="catalog-model-showcase" data-reveal>
           <div className="catalog-model-showcase__copy">
@@ -107,7 +118,7 @@ export function ProductCatalog() {
         </div>
 
         <p className="catalog-status" aria-live="polite">
-          Showing {visibleProducts.length} of {products.length} product groups
+          Showing {visibleProducts.length} of {areaProducts.length} product groups
         </p>
 
         {visibleProducts.length ? (

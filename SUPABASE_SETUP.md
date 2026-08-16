@@ -93,3 +93,45 @@ commit. GitHub deployment remains necessary only for code and design changes.
 Coworkers receive the `editor` role. They can manage website content and change their own password,
 but they cannot create or remove accounts. Each coworker should replace their temporary password
 under **Security** after signing in for the first time.
+
+## 8. Enable the quotation calculator
+
+The calculator prices every request on the server. Rates, multipliers, fee percentages and minimum
+charges live in tables that grant nothing to unauthenticated visitors, and the website only ever
+receives the finished category labels and amounts.
+
+1. Open **SQL Editor** in the Supabase dashboard.
+2. Paste the complete contents of `supabase/migrations/202608160001_quotation_system.sql` and run
+   it. The script is safe to run more than once. It creates `quote_settings`, `quote_categories`,
+   `quotations` and `quotation_counters`, restricts all four to administrators, adds the
+   `issue_quotation_number()` reference-number function, and seeds a starting set of categories.
+3. Open **Edge Functions** and choose **Deploy a new function -> Via Editor**. Name it
+   `quotation-estimate`.
+4. Replace the editor contents with the complete contents of
+   `supabase/functions/quotation-estimate/index.ts`.
+5. **Turn JWT verification off for this function.** It is the only public endpoint on the site:
+   visitors are not signed in, so the platform would otherwise reject every request before the
+   function runs. The function performs its own origin allowlisting, input validation and
+   per-contact rate limiting. Every other function must keep JWT verification enabled.
+6. Select **Deploy function**. Supabase injects the service-role value automatically; never copy it
+   into the website or into GitHub variables.
+7. Sign in to the website as the owner and open **Pricing** in the administrator sidebar.
+
+> The seeded rates are placeholders so the calculator works immediately. They are not verified
+> company pricing. Review every category, the multipliers and the sizing assumptions in the pricing
+> console before sharing any estimate with a client.
+
+Quotation reference numbers read `PREFIX-YEAR-0001` and are allocated by the database, so two
+visitors submitting at the same moment can never receive the same number. Change the prefix under
+**Pricing -> Global settings**.
+
+## 9. Restrict services, products or promotions to one location
+
+Every service, product and promotion can be limited to a service area.
+
+1. Sign in and open the record under **Products**, **Services** or **Promotions**.
+2. Tick the areas it is offered in under **Location availability**.
+3. Leave every box unticked to offer the record everywhere.
+
+Records saved before this feature existed have no location set, so they continue to appear in every
+area until an administrator narrows them.

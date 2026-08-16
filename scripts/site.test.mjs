@@ -155,3 +155,127 @@ test('coworker provisioning stays server-side and owner-authorized', async () =>
   assert.match(clientSource, /functions\.invoke<TeamResponse>\('manage-team-user'/);
   assert.doesNotMatch(clientSource, /SUPABASE_SERVICE_ROLE_KEY|service[_-]?role\s*=/i);
 });
+
+const quotationTables = ['quote_settings', 'quote_categories', 'quotations', 'quotation_counters'];
+
+test('quotation pricing is unreadable by unauthenticated visitors', async () => {
+  const migration = await readFile(
+    path.join(root, 'supabase/migrations/202608160001_quotation_system.sql'),
+    'utf8',
+  );
+
+  // Defence in depth: the privilege is revoked, and no policy is written for the anon role.
+  for (const table of quotationTables) {
+    assert.match(
+      migration,
+      new RegExp(`revoke all on table public\\.${table} from anon, authenticated;`),
+      `${table} must revoke anon privileges`,
+    );
+  }
+
+  for (const line of migration.split('\n')) {
+    const statement = line.trim();
+    if (!statement.startsWith('grant ')) continue;
+    const table = quotationTables.find((name) => statement.includes(`public.${name}`));
+    if (table) {
+      assert.doesNotMatch(statement, /\banon\b/, `${table} must never be granted to anon`);
+    }
+  }
+
+  // The rate card is owner-only; stored quotations may be managed by any administrator.
+  const ownerOnlyTables = ['quote_settings', 'quote_categories'];
+  for (const block of migration.split('create policy').slice(1)) {
+    const statement = block.split(';')[0];
+    const table = quotationTables.find((name) => statement.includes(`public.${name}`));
+    if (!table) continue;
+
+    assert.doesNotMatch(
+      statement,
+      /^\s*to .*\banon\b/m,
+      `the policy on ${table} must not target anon`,
+    );
+    if (ownerOnlyTables.includes(table)) {
+      assert.match(
+        statement,
+        /private\.is_owner\(\)/,
+        `${table} holds pricing, so its policy must require owner access`,
+      );
+    } else {
+      assert.match(
+        statement,
+        /private\.is_(admin|owner)\(\)/,
+        `${table} policies must check administrator access`,
+      );
+    }
+  }
+  // Editors must not be able to reach pricing through the API even though the menu hides it.
+  assert.doesNotMatch(
+    migration.split('on public.quote_settings')[1]?.split('drop policy')[0] ?? '',
+    /private\.is_admin\(\)/,
+  );
+
+  // Reference numbers can only be minted by the server-side function, never from a browser.
+  assert.match(migration, /revoke all on function public\.issue_quotation_number\(\) from public;/);
+  assert.match(
+    migration,
+    /grant execute on function public\.issue_quotation_number\(\) to service_role;/,
+  );
+  assert.doesNotMatch(
+    migration,
+    /grant execute on function public\.issue_quotation_number\(\) to (anon|authenticated)/,
+  );
+});
+
+test('the public quotation surface never handles pricing rules', async () => {
+  const edgeFunction = await readFile(
+    path.join(root, 'supabase/functions/quotation-estimate/index.ts'),
+    'utf8',
+  );
+  assert.match(edgeFunction, /SUPABASE_SERVICE_ROLE_KEY/);
+  assert.match(edgeFunction, /allowedOrigins/);
+  assert.match(edgeFunction, /issue_quotation_number/);
+
+  const publicFiles = [
+    'src/components/quotation/QuotationWizard.tsx',
+    'src/components/quotation/QuotationResult.tsx',
+    'src/components/quotation/QuotationSection.tsx',
+    'src/lib/quotationDocument.ts',
+    'src/lib/docgen/png.ts',
+    'src/lib/docgen/pdf.ts',
+    'src/lib/docgen/docx.ts',
+  ];
+  const publicSource = (
+    await Promise.all(publicFiles.map((file) => readFile(path.join(root, file), 'utf8')))
+  ).join('\n');
+
+  for (const table of quotationTables) {
+    assert.doesNotMatch(
+      publicSource,
+      new RegExp(table),
+      `the public quotation UI must not reference ${table}`,
+    );
+  }
+  assert.doesNotMatch(publicSource, /SUPABASE_SERVICE_ROLE_KEY|service[_-]?role\s*=/i);
+
+  // The estimate the browser receives carries labels and amounts only.
+  const types = await readFile(path.join(root, 'src/cms/quotationTypes.ts'), 'utf8');
+  const estimate = types.split('export type QuotationEstimate = {')[1].split('};')[0];
+  assert.doesNotMatch(estimate, /rate|basis|multiplier|margin|markup|supplier|quantity/i);
+});
+
+test('service-area availability stays optional so existing records keep validating', async () => {
+  const types = await readFile(path.join(root, 'src/cms/types.ts'), 'utf8');
+  const siteData = await readFile(path.join(root, 'src/data/siteData.ts'), 'utf8');
+
+  assert.match(
+    types,
+    /value\.availability === undefined \|\| isStringArray\(value\.availability\)/,
+  );
+  assert.match(siteData, /availability\?: ServiceAreaCode\[\]/);
+  // A required availability key would make every pre-existing row fail validation and vanish.
+  assert.doesNotMatch(types, /hasStrings\(value, \[[^\]]*'availability'/);
+  assert.match(
+    siteData,
+    /!area \|\| !item\.availability\?\.length \|\| item\.availability\.includes/,
+  );
+});

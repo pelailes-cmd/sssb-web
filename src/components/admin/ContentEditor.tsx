@@ -10,6 +10,7 @@ import {
 import {
   aboutContent,
   productCategories,
+  serviceAreaOptions,
   type AboutCommitment,
   type AboutContent,
   type DocumentEntry,
@@ -20,6 +21,7 @@ import {
   type ProductSpec,
   type Promotion,
   type Service,
+  type ServiceAreaCode,
 } from '../../data/siteData';
 
 type ContentEditorProps = {
@@ -130,6 +132,51 @@ function Field({
       {children}
       {hint ? <small>{hint}</small> : null}
     </label>
+  );
+}
+
+/**
+ * Service-area availability. An empty selection is stored as `undefined` rather than an empty
+ * array, which the public site reads as "available in every service area" — the same behaviour
+ * records saved before this control existed already have.
+ */
+function AvailabilityField({
+  value,
+  onChange,
+}: {
+  value: ServiceAreaCode[] | undefined;
+  onChange: (value: ServiceAreaCode[] | undefined) => void;
+}) {
+  const selected = value ?? [];
+
+  const toggle = (code: ServiceAreaCode, checked: boolean) => {
+    const next = checked ? [...selected, code] : selected.filter((entry) => entry !== code);
+    onChange(next.length ? next : undefined);
+  };
+
+  return (
+    <div className="admin-field admin-field--full">
+      <span>Location availability</span>
+      <div className="admin-availability">
+        {serviceAreaOptions.map((option) => (
+          <label key={option.code} className="admin-check">
+            <input
+              type="checkbox"
+              checked={selected.includes(option.code)}
+              onChange={(event) => toggle(option.code, event.target.checked)}
+            />
+            <span>
+              <strong>{option.place}</strong>
+            </span>
+          </label>
+        ))}
+      </div>
+      <small>
+        {selected.length
+          ? 'Shown only when a visitor selects one of the ticked areas.'
+          : 'No areas ticked, so this record is shown in every location.'}
+      </small>
+    </div>
   );
 }
 
@@ -360,6 +407,10 @@ function ProductFields({
         />
         <span>Feature this product</span>
       </label>
+      <AvailabilityField
+        value={value.availability}
+        onChange={(availability) => onChange({ ...value, availability })}
+      />
     </>
   );
 }
@@ -454,6 +505,10 @@ function PromotionFields({
           onChange={(event) => onChange({ ...value, highlights: textToList(event.target.value) })}
         />
       </Field>
+      <AvailabilityField
+        value={value.availability}
+        onChange={(availability) => onChange({ ...value, availability })}
+      />
     </>
   );
 }
@@ -550,6 +605,10 @@ function ServiceFields({
           <option value="business-message">Verified business message</option>
         </select>
       </Field>
+      <AvailabilityField
+        value={value.availability}
+        onChange={(availability) => onChange({ ...value, availability })}
+      />
     </>
   );
 }
