@@ -85,6 +85,14 @@ const hasStrings = (value: Record<string, unknown>, keys: string[]) =>
 
 const isImage = (value: unknown) => isRecord(value) && hasStrings(value, ['src', 'alt']);
 
+/**
+ * Service-area availability is optional on purpose. Records saved before the location filter
+ * existed carry no `availability` key, and a guard that required one would make every one of
+ * them fail validation and disappear from the site without any error being raised.
+ */
+const hasOptionalAvailability = (value: Record<string, unknown>) =>
+  value.availability === undefined || isStringArray(value.availability);
+
 const isProduct = (value: Record<string, unknown>) =>
   hasStrings(value, ['id', 'name', 'category', 'eyebrow', 'summary']) &&
   productCategories.slice(1).includes(value.category as Product['category']) &&
@@ -94,7 +102,8 @@ const isProduct = (value: Record<string, unknown>) =>
   value.specs.every((spec) => isRecord(spec) && hasStrings(spec, ['label', 'value'])) &&
   (value.models === undefined ||
     (Array.isArray(value.models) &&
-      value.models.every((model) => isRecord(model) && hasStrings(model, ['src', 'label']))));
+      value.models.every((model) => isRecord(model) && hasStrings(model, ['src', 'label'])))) &&
+  hasOptionalAvailability(value);
 
 const isPromotion = (value: Record<string, unknown>) =>
   hasStrings(value, ['id', 'title', 'supportingLine', 'status', 'statusLabel', 'condition']) &&
@@ -102,7 +111,8 @@ const isPromotion = (value: Record<string, unknown>) =>
   isImage(value.image) &&
   Array.isArray(value.offers) &&
   value.offers.every((offer) => isRecord(offer) && hasStrings(offer, ['threshold', 'inclusion'])) &&
-  isStringArray(value.highlights);
+  isStringArray(value.highlights) &&
+  hasOptionalAvailability(value);
 
 const isPortfolioEntry = (value: Record<string, unknown>) =>
   hasStrings(value, ['id', 'title']) &&
@@ -112,7 +122,8 @@ const isPortfolioEntry = (value: Record<string, unknown>) =>
 const isService = (value: Record<string, unknown>) =>
   hasStrings(value, ['id', 'title', 'description', 'icon', 'source']) &&
   ['home', 'building', 'factory', 'tools', 'shield'].includes(value.icon as string) &&
-  ['cover', 'business-message'].includes(value.source as string);
+  ['cover', 'business-message'].includes(value.source as string) &&
+  hasOptionalAvailability(value);
 
 const isDocument = (value: Record<string, unknown>) =>
   hasStrings(value, ['id', 'title', 'product', 'category', 'fileType', 'href']) &&

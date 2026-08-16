@@ -1,4 +1,4 @@
-# Smart Save Solar Bicol content audit
+# Smart Save Solar content audit
 
 ## Supplied inventory
 
@@ -15,7 +15,9 @@ All files in `Cover`, `logo`, `Products`, `Promotions`, and `models` remain unch
 
 ## Verified business information
 
-- Business name: Smart Save Solar Bicol
+- Business name: Smart Save Solar (the supplied artwork reads "Smart Save Solar Bicol"; the
+  location descriptor was removed from the website branding on request, since the company now
+  serves more than one service area)
 - Supporting name shown in supplied artwork: Smart Save Ventures Corp.
 - Tagline: Solar you can Trust! (website display follows the requested title case: “Solar You Can Trust”)
 - Phone: 0997-688-4865

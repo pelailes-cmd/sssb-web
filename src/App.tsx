@@ -11,6 +11,7 @@ import { OverviewSection } from './components/OverviewSection';
 import { PortfolioSection } from './components/PortfolioSection';
 import { ProductCatalog } from './components/ProductCatalog';
 import { PromotionsSection } from './components/PromotionsSection';
+import { QuotationSection } from './components/quotation/QuotationSection';
 import { ServicesSection } from './components/ServicesSection';
 import { business } from './data/siteData';
 import { useRevealAnimations } from './hooks/useRevealAnimations';
@@ -72,6 +73,7 @@ export default function App() {
         <ServicesSection />
         <ProductCatalog />
         <PromotionsSection />
+        <QuotationSection />
         <DocumentationSection />
         <PortfolioSection />
         <ContactSection />

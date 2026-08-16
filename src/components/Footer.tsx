@@ -15,8 +15,8 @@ export function Footer() {
               loading="lazy"
             />
             <span className="brand__copy">
-              <strong>Smart Save Solar</strong>
-              <small>Bicol</small>
+              <strong>Smart Save</strong>
+              <small>Solar</small>
             </span>
           </a>
           <p>{business.tagline}</p>
@@ -55,8 +55,8 @@ export function Footer() {
 
       <div className="container site-footer__bottom">
         <p>
-          © {new Date().getFullYear()} Smart Save Solar Bicol. Business information is limited to
-          supplied sources.
+          © {new Date().getFullYear()} {business.name}. Business information is limited to supplied
+          sources.
         </p>
         <p>Solar You Can Trust</p>
       </div>
