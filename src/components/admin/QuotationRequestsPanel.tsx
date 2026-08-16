@@ -10,7 +10,11 @@ import {
   Trash2,
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { deleteQuotation, fetchQuotations, updateQuotation } from '../../cms/quotationRepository';
+import {
+  deleteQuotation,
+  fetchQuotations,
+  updateQuotation,
+} from '../../cms/quotationAdminRepository';
 import {
   quotationStatusLabels,
   quotationStatuses,
@@ -85,6 +89,7 @@ export function QuotationRequestsPanel() {
   const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | QuotationStatus>('all');
   const [noteDraft, setNoteDraft] = useState('');
+  const [statusDraft, setStatusDraft] = useState<QuotationStatus>('generated');
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [busyFormat, setBusyFormat] = useState<string | null>(null);
@@ -145,6 +150,7 @@ export function QuotationRequestsPanel() {
   const openRecord = (record: QuotationRecord) => {
     setSelected(record);
     setNoteDraft(record.adminNotes ?? '');
+    setStatusDraft(record.status);
     setError(null);
     setNotice(null);
   };
@@ -158,6 +164,7 @@ export function QuotationRequestsPanel() {
       const updated = await updateQuotation(selected.id, changes);
       setSelected(updated);
       setNoteDraft(updated.adminNotes ?? '');
+      setStatusDraft(updated.status);
       setRecords((current) =>
         current.map((record) => (record.id === updated.id ? updated : record)),
       );
@@ -314,12 +321,12 @@ export function QuotationRequestsPanel() {
           <div className="admin-editor__fields">
             <label className="admin-field">
               <span>Status</span>
+              {/* Held locally and written by the Save button. Writing on every change event would
+                  commit each option a keyboard user passes through while arrowing to the one they
+                  want, and disabling the control mid-interaction would drop their focus. */}
               <select
-                value={selected.status}
-                disabled={isSaving}
-                onChange={(event) =>
-                  void applyChanges({ status: event.target.value as QuotationStatus })
-                }
+                value={statusDraft}
+                onChange={(event) => setStatusDraft(event.target.value as QuotationStatus)}
               >
                 {quotationStatuses.map((status) => (
                   <option key={status} value={status}>
@@ -353,14 +360,14 @@ export function QuotationRequestsPanel() {
               className="button button--primary"
               type="button"
               disabled={isSaving}
-              onClick={() => void applyChanges({ adminNotes: noteDraft })}
+              onClick={() => void applyChanges({ status: statusDraft, adminNotes: noteDraft })}
             >
               {isSaving ? (
                 <LoaderCircle className="is-spinning" aria-hidden="true" />
               ) : (
                 <Save aria-hidden="true" />
               )}
-              {isSaving ? 'Saving…' : 'Save notes'}
+              {isSaving ? 'Saving…' : 'Save changes'}
             </button>
           </div>
 

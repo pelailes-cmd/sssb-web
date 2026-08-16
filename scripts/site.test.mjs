@@ -182,18 +182,37 @@ test('quotation pricing is unreadable by unauthenticated visitors', async () => 
     }
   }
 
+  // The rate card is owner-only; stored quotations may be managed by any administrator.
+  const ownerOnlyTables = ['quote_settings', 'quote_categories'];
   for (const block of migration.split('create policy').slice(1)) {
     const statement = block.split(';')[0];
     const table = quotationTables.find((name) => statement.includes(`public.${name}`));
-    if (table) {
-      assert.doesNotMatch(
+    if (!table) continue;
+
+    assert.doesNotMatch(
+      statement,
+      /^\s*to .*\banon\b/m,
+      `the policy on ${table} must not target anon`,
+    );
+    if (ownerOnlyTables.includes(table)) {
+      assert.match(
         statement,
-        /^\s*to .*\banon\b/m,
-        `the policy on ${table} must not target anon`,
+        /private\.is_owner\(\)/,
+        `${table} holds pricing, so its policy must require owner access`,
       );
-      assert.match(statement, /private\.is_admin\(\)/, `${table} policies must check is_admin()`);
+    } else {
+      assert.match(
+        statement,
+        /private\.is_(admin|owner)\(\)/,
+        `${table} policies must check administrator access`,
+      );
     }
   }
+  // Editors must not be able to reach pricing through the API even though the menu hides it.
+  assert.doesNotMatch(
+    migration.split('on public.quote_settings')[1]?.split('drop policy')[0] ?? '',
+    /private\.is_admin\(\)/,
+  );
 
   // Reference numbers can only be minted by the server-side function, never from a browser.
   assert.match(migration, /revoke all on function public\.issue_quotation_number\(\) from public;/);
@@ -248,9 +267,15 @@ test('service-area availability stays optional so existing records keep validati
   const types = await readFile(path.join(root, 'src/cms/types.ts'), 'utf8');
   const siteData = await readFile(path.join(root, 'src/data/siteData.ts'), 'utf8');
 
-  assert.match(types, /value\.availability === undefined \|\| isStringArray\(value\.availability\)/);
+  assert.match(
+    types,
+    /value\.availability === undefined \|\| isStringArray\(value\.availability\)/,
+  );
   assert.match(siteData, /availability\?: ServiceAreaCode\[\]/);
   // A required availability key would make every pre-existing row fail validation and vanish.
   assert.doesNotMatch(types, /hasStrings\(value, \[[^\]]*'availability'/);
-  assert.match(siteData, /!area \|\| !item\.availability\?\.length \|\| item\.availability\.includes/);
+  assert.match(
+    siteData,
+    /!area \|\| !item\.availability\?\.length \|\| item\.availability\.includes/,
+  );
 });

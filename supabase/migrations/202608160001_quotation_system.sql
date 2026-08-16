@@ -87,6 +87,8 @@ create table if not exists public.quotations (
   project_name text check (length(project_name) <= 160),
   project_location text not null check (length(project_location) between 1 and 200),
   service_area text not null default 'other' check (service_area in ('pili', 'lipa', 'other')),
+  -- Salted digest of the requesting address, used only to rate-limit anonymous submissions.
+  client_fingerprint text,
   inputs jsonb not null default '{}'::jsonb check (jsonb_typeof(inputs) = 'object'),
   line_items jsonb not null default '[]'::jsonb check (jsonb_typeof(line_items) = 'array'),
   system_size_kwp numeric(10, 2) not null default 0 check (system_size_kwp >= 0),
@@ -99,8 +101,15 @@ create table if not exists public.quotations (
   updated_at timestamptz not null default now()
 );
 
+-- Added after the table was first written; kept separate so re-running the file is still safe.
+alter table public.quotations add column if not exists client_fingerprint text;
+
 create index if not exists quotations_recent_idx on public.quotations (created_at desc);
 create index if not exists quotations_status_idx on public.quotations (status, created_at desc);
+create index if not exists quotations_rate_limit_idx
+on public.quotations (client_fingerprint, created_at desc);
+create index if not exists quotations_contact_idx
+on public.quotations (client_contact, created_at desc);
 
 -- Reference-number allocation. No role is granted anything on this table; it is reachable only
 -- through the security-definer function below, so a quotation number can never be minted or
@@ -139,21 +148,26 @@ grant select, insert, update on table public.quote_settings to authenticated;
 grant select, insert, update, delete on table public.quote_categories to authenticated;
 grant select, update, delete on table public.quotations to authenticated;
 
+-- Pricing is owner-only, matching the sidebar. Content editors manage the website but must not be
+-- able to read or rewrite the rate card, and gating this in the UI alone would leave the REST API
+-- open to any signed-in coworker.
 drop policy if exists "Administrators manage quotation settings" on public.quote_settings;
-create policy "Administrators manage quotation settings"
+drop policy if exists "Owners manage quotation settings" on public.quote_settings;
+create policy "Owners manage quotation settings"
 on public.quote_settings
 for all
 to authenticated
-using ((select private.is_admin()))
-with check ((select private.is_admin()));
+using ((select private.is_owner()))
+with check ((select private.is_owner()));
 
 drop policy if exists "Administrators manage quotation categories" on public.quote_categories;
-create policy "Administrators manage quotation categories"
+drop policy if exists "Owners manage quotation categories" on public.quote_categories;
+create policy "Owners manage quotation categories"
 on public.quote_categories
 for all
 to authenticated
-using ((select private.is_admin()))
-with check ((select private.is_admin()));
+using ((select private.is_owner()))
+with check ((select private.is_owner()));
 
 drop policy if exists "Administrators read quotations" on public.quotations;
 create policy "Administrators read quotations"
@@ -210,7 +224,12 @@ begin
 end;
 $$;
 
+-- `from public` alone is not enough: Supabase's default privileges can grant EXECUTE to anon and
+-- authenticated at creation time, and those role grants survive a revoke aimed at PUBLIC. Without
+-- the explicit revoke below, any visitor holding the publishable key could burn reference numbers
+-- through /rest/v1/rpc and read the configured prefix and running count back out.
 revoke all on function public.issue_quotation_number() from public;
+revoke all on function public.issue_quotation_number() from anon, authenticated;
 grant execute on function public.issue_quotation_number() to service_role;
 
 insert into public.quote_settings (id)

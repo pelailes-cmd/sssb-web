@@ -90,24 +90,33 @@ export function QuotationResult({ estimate, onRestart }: QuotationResultProps) {
         </dl>
       ) : null}
 
-      <div className="quotation-scope">
-        <div className="quotation-scope__head" aria-hidden="true">
-          <span>Description</span>
-          <span>Estimated amount</span>
-        </div>
-        <ul>
+      {/* A real table so each amount is announced with its description and column header rather
+          than as a bare number following an unrelated label. */}
+      <table className="quotation-scope">
+        <caption className="sr-only">
+          Estimated scope for quotation {estimate.quotationNumber}
+        </caption>
+        <thead>
+          <tr>
+            <th scope="col">Description</th>
+            <th scope="col">Estimated amount</th>
+          </tr>
+        </thead>
+        <tbody>
           {estimate.lineItems.map((item) => (
-            <li key={item.label}>
-              <span>{item.label}</span>
-              <span>{formatQuotationAmount(item.amount, symbol)}</span>
-            </li>
+            <tr key={item.label}>
+              <th scope="row">{item.label}</th>
+              <td>{formatQuotationAmount(item.amount, symbol)}</td>
+            </tr>
           ))}
-        </ul>
-        <p className="quotation-scope__total">
-          <span>Estimated Total</span>
-          <span>{formatQuotationAmount(estimate.estimatedTotal, symbol)}</span>
-        </p>
-      </div>
+        </tbody>
+        <tfoot>
+          <tr>
+            <th scope="row">Estimated Total</th>
+            <td>{formatQuotationAmount(estimate.estimatedTotal, symbol)}</td>
+          </tr>
+        </tfoot>
+      </table>
 
       {estimate.notes.length ? (
         <ul className="quotation-result__notes">

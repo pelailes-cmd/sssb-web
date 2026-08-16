@@ -6,7 +6,7 @@ import {
   fetchQuoteSettings,
   saveQuoteCategory,
   saveQuoteSettings,
-} from '../../cms/quotationRepository';
+} from '../../cms/quotationAdminRepository';
 import {
   quoteCategoryBases,
   quoteCategoryBasisLabels,
@@ -238,6 +238,16 @@ export function QuotationPricingPanel() {
   const submitSettings = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!draft || !settings) return;
+
+    // Mirrors the CHECK constraint on quote_settings.quotation_prefix, so an invalid prefix is
+    // reported in plain language instead of surfacing a raw constraint violation from PostgREST.
+    if (!/^[A-Z][A-Z0-9]{1,7}$/.test(draft.quotationPrefix.trim().toUpperCase())) {
+      setError(
+        'Use 2 to 8 characters for the quotation prefix: a letter first, then letters or digits.',
+      );
+      return;
+    }
+
     setIsSaving(true);
     setError(null);
     setNotice(null);

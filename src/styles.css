@@ -3009,7 +3009,10 @@ section[id] {
   line-height: 1.45;
 }
 
-.field-error {
+.field-error,
+/* `.field small` is more specific than `.field-error` alone, so an error rendered as a <small>
+   would otherwise inherit the muted hint colour and read as help text rather than a problem. */
+.field small.field-error {
   margin-top: 0.35rem;
   color: var(--color-error);
   font-size: 0.7rem;
@@ -5974,22 +5977,30 @@ dialog.admin-dashboard[open] {
 }
 
 .quotation-scope {
+  width: 100%;
   overflow: hidden;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
+  border-collapse: collapse;
+  text-align: left;
 }
 
-.quotation-scope__head,
-.quotation-scope li,
-.quotation-scope__total {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 1rem;
-  align-items: baseline;
+.quotation-scope th,
+.quotation-scope td {
   padding: 0.8rem 1.1rem;
+  font-weight: inherit;
+  vertical-align: baseline;
 }
 
-.quotation-scope__head {
+.quotation-scope td {
+  width: 1%;
+  white-space: nowrap;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-weight: 720;
+}
+
+.quotation-scope thead th {
   color: var(--color-muted);
   background: var(--color-cyan-100);
   font-size: 0.7rem;
@@ -5998,28 +6009,27 @@ dialog.admin-dashboard[open] {
   text-transform: uppercase;
 }
 
-.quotation-scope ul {
-  margin: 0;
-  padding: 0;
-  list-style: none;
+.quotation-scope thead th:last-child {
+  text-align: right;
 }
 
-.quotation-scope li {
+.quotation-scope tbody tr {
   border-top: 1px solid var(--color-border);
   font-size: 0.92rem;
 }
 
-.quotation-scope li span:last-child,
-.quotation-scope__total span:last-child {
-  font-variant-numeric: tabular-nums;
-  font-weight: 720;
+.quotation-scope tbody th {
+  font-weight: 400;
 }
 
-.quotation-scope__total {
-  margin: 0;
+.quotation-scope tfoot tr {
   border-top: 2px solid var(--color-navy-900);
   background: var(--color-background);
   font-size: 1rem;
+}
+
+.quotation-scope tfoot th,
+.quotation-scope tfoot td {
   font-weight: 820;
 }
 
@@ -6367,5 +6377,12 @@ dialog.admin-dashboard[open] {
 
   .quotation-downloads .button {
     flex: 1 1 100%;
+  }
+
+  /* The fixed call button occupies the bottom-right corner below 720px; leave it room so the last
+     full-width action in the wizard and the estimate is not sitting underneath it. */
+  .quotation-form,
+  .quotation-result {
+    padding-bottom: 5.5rem;
   }
 }

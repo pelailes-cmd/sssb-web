@@ -1,5 +1,5 @@
 import { ArrowLeft, ArrowRight, Building2, Calculator, Home, LoaderCircle } from 'lucide-react';
-import { useId, useMemo, useState, type FormEvent } from 'react';
+import { useId, useMemo, useRef, useState, type FormEvent } from 'react';
 import { requestQuotationEstimate } from '../../cms/quotationRepository';
 import type {
   QuotationEstimate,
@@ -160,6 +160,7 @@ function validateStep(
 export function QuotationWizard() {
   const { isConfigured } = useSiteContent();
   const fieldId = useId();
+  const stepRef = useRef<HTMLDivElement>(null);
   const [sector, setSector] = useState<QuotationSector>('residential');
   const [step, setStep] = useState(0);
   const [values, setValues] = useState<QuotationFormValues>(defaultValues);
@@ -178,6 +179,8 @@ export function QuotationWizard() {
     setErrors((current) => (current[field] ? { ...current, [field]: undefined } : current));
   };
 
+  const errorCount = Object.values(errors).filter(Boolean).length;
+
   const errorId = (field: FieldName) => `${fieldId}-${field}-error`;
 
   const describedBy = (field: FieldName, hintId?: string) => {
@@ -185,24 +188,43 @@ export function QuotationWizard() {
     return ids.length ? ids.join(' ') : undefined;
   };
 
+  /** Moves focus to the top of whichever step just became visible. */
+  const focusStep = () => {
+    window.setTimeout(() => stepRef.current?.focus(), 0);
+  };
+
   const chooseSector = (next: QuotationSector) => {
     if (next === sector) return;
+    // Sector-specific answers are cleared so a commercial figure cannot follow the visitor into a
+    // residential estimate and silently change the system size.
     setSector(next);
-    setValues((current) => ({ ...current, projectType: '' }));
+    setValues((current) => ({
+      ...current,
+      projectType: '',
+      estimatedLoadKw: '',
+      complexity: 'standard',
+      existingSystem: 'none',
+    }));
     setErrors({});
   };
 
   const restart = () => {
+    const confirmed = window.confirm(
+      'Start a new estimate? The current reference number and amounts will not be shown again unless you have already downloaded them.',
+    );
+    if (!confirmed) return;
     setEstimate(null);
     setValues(defaultValues);
     setErrors({});
     setSubmitError(null);
     setStep(0);
+    focusStep();
   };
 
   const goBack = () => {
     setSubmitError(null);
     setStep((current) => Math.max(0, current - 1));
+    focusStep();
   };
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
@@ -212,13 +234,24 @@ export function QuotationWizard() {
 
     const firstInvalid = Object.keys(nextErrors)[0];
     if (firstInvalid) {
-      const field = event.currentTarget.elements.namedItem(firstInvalid);
-      if (field instanceof HTMLElement) field.focus();
+      // A radio group resolves to a RadioNodeList rather than an element, so focus the first
+      // input inside it; otherwise activating Continue on step one appears to do nothing at all.
+      const named = event.currentTarget.elements.namedItem(firstInvalid);
+      const target =
+        named instanceof HTMLElement
+          ? named
+          : named instanceof RadioNodeList
+            ? (Array.from(named).find((node) => node instanceof HTMLElement) as
+                HTMLElement | undefined)
+            : undefined;
+      if (target) target.focus();
+      else stepRef.current?.focus();
       return;
     }
 
     if (step < 3) {
       setStep(step + 1);
+      focusStep();
       return;
     }
 
@@ -228,6 +261,7 @@ export function QuotationWizard() {
       const result = await requestQuotationEstimate(sector, values);
       setEstimate(result);
       setStep(4);
+      focusStep();
     } catch (requestError) {
       setSubmitError(
         requestError instanceof Error
@@ -257,16 +291,33 @@ export function QuotationWizard() {
           >
             <span>{String(index + 1).padStart(2, '0')}</span>
             {title}
+            {/* State is carried in text as well as colour, for screen readers and forced colours. */}
+            <span className="sr-only">
+              {index < step
+                ? ' (completed)'
+                : index === step
+                  ? ' (current step)'
+                  : ' (not started)'}
+            </span>
           </li>
         ))}
       </ol>
 
+      {/* Announces step changes and validation failures, which are otherwise silent. */}
+      <p className="sr-only" role="status" aria-live="polite">
+        {errorCount
+          ? `${errorCount} ${errorCount === 1 ? 'answer needs' : 'answers need'} attention on step ${step + 1}, ${stepTitles[step]}.`
+          : `Step ${step + 1} of ${stepTitles.length}: ${stepTitles[step]}.`}
+      </p>
+
       {estimate && step === 4 ? (
-        <QuotationResult estimate={estimate} onRestart={restart} />
+        <div ref={stepRef} tabIndex={-1}>
+          <QuotationResult estimate={estimate} onRestart={restart} />
+        </div>
       ) : (
         <form className="quotation-form" onSubmit={submit} noValidate>
           {step === 0 ? (
-            <div className="quotation-step" data-reveal>
+            <div className="quotation-step" data-reveal ref={stepRef} tabIndex={-1}>
               <div className="quotation-sectors" role="group" aria-label="Quotation category">
                 <button
                   type="button"
@@ -316,7 +367,7 @@ export function QuotationWizard() {
           ) : null}
 
           {step === 1 ? (
-            <div className="quotation-step" data-reveal>
+            <div className="quotation-step" data-reveal ref={stepRef} tabIndex={-1}>
               <div className="form-grid">
                 <label className="field field--wide">
                   <span>
@@ -493,7 +544,7 @@ export function QuotationWizard() {
           ) : null}
 
           {step === 2 ? (
-            <div className="quotation-step" data-reveal>
+            <div className="quotation-step" data-reveal ref={stepRef} tabIndex={-1}>
               <fieldset className="quotation-choices">
                 <legend>What should the estimate cover?</legend>
                 <div className="quotation-toggles">
@@ -615,7 +666,7 @@ export function QuotationWizard() {
           ) : null}
 
           {step === 3 ? (
-            <div className="quotation-step" data-reveal>
+            <div className="quotation-step" data-reveal ref={stepRef} tabIndex={-1}>
               <div className="form-grid">
                 <label className="field">
                   <span>

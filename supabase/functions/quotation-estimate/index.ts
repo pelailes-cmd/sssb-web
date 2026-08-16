@@ -119,8 +119,48 @@ const commercialProjectTypes = new Set([
   'hospitality',
 ]);
 
-const text = (value: unknown, limit: number) =>
-  typeof value === 'string' ? value.trim().slice(0, limit) : '';
+/**
+ * Realistic ceilings for each sector. These are not cosmetic: because the quotation itemises a
+ * generic category per line, an unbounded quantity would let anyone divide a line by the quantity
+ * they supplied and recover the underlying rate. Holding the calculator to project sizes the
+ * business actually serves keeps that out of reach.
+ */
+const limits = {
+  residential: { pvKwp: 30, batteryKwh: 120, floorArea: 2000, floors: 6, loadKw: 100 },
+  commercial: { pvKwp: 2000, batteryKwh: 5000, floorArea: 100000, floors: 60, loadKw: 5000 },
+} as const;
+
+const MAX_BODY_BYTES = 16 * 1024;
+
+/**
+ * Requests per caller per hour. The contact detail is supplied by the caller and can be varied at
+ * will, so the network address is counted as well; it is stored only as a salted digest.
+ */
+const MAX_PER_CONTACT_PER_HOUR = 8;
+const MAX_PER_ADDRESS_PER_HOUR = 24;
+
+/** Salted so the stored digest cannot be reversed into a visitor's address by dictionary search. */
+async function fingerprint(request: Request, salt: string): Promise<string> {
+  const forwarded = request.headers.get('x-forwarded-for') ?? '';
+  const address = forwarded.split(',')[0]?.trim() || 'unknown';
+  const data = new TextEncoder().encode(`${salt}:${address}`);
+  const digest = await crypto.subtle.digest('SHA-256', data);
+  return Array.from(new Uint8Array(digest))
+    .slice(0, 16)
+    .map((byte) => byte.toString(16).padStart(2, '0'))
+    .join('');
+}
+
+/** Trims, bounds, and strips characters Postgres text columns reject (NUL) or XML cannot carry. */
+const text = (value: unknown, limit: number) => {
+  if (typeof value !== 'string') return '';
+  let cleaned = '';
+  for (const char of value) {
+    const code = char.codePointAt(0) ?? 0;
+    if (code === 0x09 || code === 0x0a || (code >= 0x20 && code !== 0x7f)) cleaned += char;
+  }
+  return cleaned.trim().slice(0, limit);
+};
 
 const bool = (value: unknown) => value === true;
 
@@ -131,10 +171,20 @@ function num(value: unknown, min: number, max: number, fallback = 0): number {
   return Math.min(max, Math.max(min, parsed));
 }
 
-function lookupFactor(source: Record<string, unknown>, key: string, fallback: number): number {
+/**
+ * Reads a configured factor. `max` has to be generous enough for the setting being read: the
+ * electricity tariff is a peso amount well above 10, and silently rejecting it would make the
+ * administrator's saved value have no effect on any estimate.
+ */
+function lookupFactor(
+  source: Record<string, unknown>,
+  key: string,
+  fallback: number,
+  max = 10,
+): number {
   const raw = source?.[key];
   const parsed = typeof raw === 'number' ? raw : Number.parseFloat(String(raw ?? ''));
-  return Number.isFinite(parsed) && parsed > 0 && parsed <= 10 ? parsed : fallback;
+  return Number.isFinite(parsed) && parsed > 0 && parsed <= max ? parsed : fallback;
 }
 
 function parseInput(body: Record<string, unknown>): { input?: EstimateInput; error?: string } {
@@ -197,22 +247,27 @@ function parseInput(body: Record<string, unknown>): { input?: EstimateInput; err
     return { error: 'Select a solar photovoltaic system, battery storage, or both.' };
   }
 
+  const bounds = limits[sector];
+
   return {
     input: {
       sector,
       projectType,
       location,
       serviceArea,
-      floorArea: num(raw.floorArea, 0, 500000),
-      floors: Math.round(num(raw.floors, 1, 80, 1)),
+      floorArea: num(raw.floorArea, 0, bounds.floorArea),
+      floors: Math.round(num(raw.floors, 1, bounds.floors, 1)),
       electricalService,
-      monthlyBill: num(raw.monthlyBill, 0, 100000000),
-      estimatedLoadKw: num(raw.estimatedLoadKw, 0, 20000),
+      monthlyBill: num(raw.monthlyBill, 0, 5000000),
+      // Connected load is a commercial question only. Residential wizards can still carry a stale
+      // value if the visitor switched sector part-way, and honouring it would size the system from
+      // a number the visitor never intended to give for this project.
+      estimatedLoadKw: sector === 'commercial' ? num(raw.estimatedLoadKw, 0, bounds.loadKw) : 0,
       pvRequired,
       systemType,
-      pvCapacityKwp: num(raw.pvCapacityKwp, 0, 20000),
+      pvCapacityKwp: num(raw.pvCapacityKwp, 0, bounds.pvKwp),
       batteryRequired,
-      batteryKwh: num(raw.batteryKwh, 0, 100000),
+      batteryKwh: num(raw.batteryKwh, 0, bounds.batteryKwh),
       backupRequired: bool(raw.backupRequired),
       complexity,
       existingSystem,
@@ -225,30 +280,44 @@ function parseInput(body: Record<string, unknown>): { input?: EstimateInput; err
   };
 }
 
-/** Derives the system size when the client did not state one. */
+/**
+ * Derives the system size when the client did not state one.
+ *
+ * Consumption leads. Floor area and connected load are only consulted when there is no bill to
+ * work from, and roof area then acts as a ceiling rather than a floor — sizing a small household
+ * up to whatever its roof could hold would quote them many times the system they need.
+ */
 function resolveSizing(input: EstimateInput, assumptions: Record<string, unknown>) {
-  const tariff = lookupFactor(assumptions, 'tariff_per_kwh', 12);
-  const peakSunHours = lookupFactor(assumptions, 'peak_sun_hours', 4.5);
-  const performanceRatio = lookupFactor(assumptions, 'performance_ratio', 0.8);
-  const offsetTarget = lookupFactor(assumptions, 'offset_target', 0.7);
-  const batteryDayFraction = lookupFactor(assumptions, 'battery_day_fraction', 0.35);
+  const bounds = limits[input.sector];
+  const tariff = lookupFactor(assumptions, 'tariff_per_kwh', 12, 100);
+  const peakSunHours = lookupFactor(assumptions, 'peak_sun_hours', 4.5, 12);
+  const performanceRatio = lookupFactor(assumptions, 'performance_ratio', 0.8, 1);
+  const offsetTarget = lookupFactor(assumptions, 'offset_target', 0.7, 2);
+  const batteryDayFraction = lookupFactor(assumptions, 'battery_day_fraction', 0.35, 3);
 
   const monthlyKwh = input.monthlyBill > 0 ? input.monthlyBill / tariff : 0;
   const dailyKwh = monthlyKwh / 30.4;
+  const yieldPerKwp = Math.max(0.5, peakSunHours * performanceRatio);
+  // A roof holds roughly one kWp per 6 m2 of usable area; only part of a floor plate is usable.
+  const roofCeiling = input.floorArea > 0 ? (input.floorArea * 0.5) / 6 : Infinity;
 
   let capacityKwp = input.pvRequired ? input.pvCapacityKwp : 0;
   if (input.pvRequired && capacityKwp <= 0) {
-    const derived = (dailyKwh * offsetTarget) / Math.max(0.5, peakSunHours * performanceRatio);
-    const floorAreaFallback = input.floorArea > 0 ? input.floorArea / 40 : 0;
-    capacityKwp = Math.max(derived, floorAreaFallback, input.estimatedLoadKw * 0.6, 3);
+    const fromBill = dailyKwh > 0 ? (dailyKwh * offsetTarget) / yieldPerKwp : 0;
+    const fromLoad = input.estimatedLoadKw > 0 ? input.estimatedLoadKw * 0.6 : 0;
+    const derived = fromBill > 0 ? fromBill : fromLoad;
+    capacityKwp = Math.min(derived > 0 ? derived : 3, roofCeiling);
+    capacityKwp = Math.max(capacityKwp, 3);
   }
-  capacityKwp = Math.min(20000, Math.round(capacityKwp * 10) / 10);
+  capacityKwp = Math.min(bounds.pvKwp, Math.round(capacityKwp * 10) / 10);
 
   let batteryKwh = input.batteryRequired ? input.batteryKwh : 0;
   if (input.batteryRequired && batteryKwh <= 0) {
-    batteryKwh = Math.max(dailyKwh * batteryDayFraction, capacityKwp * 1.2, 5);
+    const fromUsage = dailyKwh * batteryDayFraction;
+    const fromArray = capacityKwp * 1.2;
+    batteryKwh = Math.max(fromUsage > 0 ? fromUsage : fromArray, 5);
   }
-  batteryKwh = Math.min(100000, Math.round(batteryKwh * 10) / 10);
+  batteryKwh = Math.min(bounds.batteryKwh, Math.round(batteryKwh * 10) / 10);
 
   return { capacityKwp, batteryKwh };
 }
@@ -277,9 +346,18 @@ function baseAmount(
   return 0;
 }
 
+/**
+ * Applies the configured floor and cap to a line that has already been scaled by the project
+ * multipliers, so a cap means what an administrator typed rather than a pre-multiplier figure.
+ *
+ * The minimum applies even when the computed amount is zero. A category that applies to the
+ * project but happens to price off a quantity the project does not have — labour, cabling and
+ * protection on a battery-only job, all of which are rated per kW of PV — must still carry its
+ * minimum charge, otherwise the work is quoted at nothing.
+ */
 function clampAmount(category: CategoryRow, amount: number): number {
   let next = amount;
-  if (category.min_amount !== null && next > 0 && next < category.min_amount) {
+  if (category.min_amount !== null && next < category.min_amount) {
     next = category.min_amount;
   }
   if (category.max_amount !== null && next > category.max_amount) {
@@ -306,9 +384,23 @@ Deno.serve(async (request) => {
     return jsonResponse(origin, { error: 'The quotation calculator is not configured.' }, 500);
   }
 
+  // Refuse oversized bodies before reading them, so a large payload cannot exhaust the worker.
+  const declaredLength = Number(request.headers.get('Content-Length') ?? '0');
+  if (Number.isFinite(declaredLength) && declaredLength > MAX_BODY_BYTES) {
+    return jsonResponse(origin, { error: 'The request is too large.' }, 413);
+  }
+
   let body: Record<string, unknown>;
   try {
-    body = (await request.json()) as Record<string, unknown>;
+    const rawBody = await request.text();
+    if (rawBody.length > MAX_BODY_BYTES) {
+      return jsonResponse(origin, { error: 'The request is too large.' }, 413);
+    }
+    const parsedBody: unknown = JSON.parse(rawBody);
+    if (typeof parsedBody !== 'object' || parsedBody === null || Array.isArray(parsedBody)) {
+      return jsonResponse(origin, { error: 'A valid JSON request is required.' }, 400);
+    }
+    body = parsedBody as Record<string, unknown>;
   } catch {
     return jsonResponse(origin, { error: 'A valid JSON request is required.' }, 400);
   }
@@ -327,18 +419,36 @@ Deno.serve(async (request) => {
     auth: { autoRefreshToken: false, persistSession: false },
   });
 
-  // Light abuse control: the same contact detail cannot mint an unlimited run of references.
+  // Abuse control. The contact detail is caller-supplied and can be varied freely, so the network
+  // address is counted too. Both queries are checked for errors: failing open here would leave the
+  // endpoint completely unmetered exactly when it is under load.
   const recentWindow = new Date(Date.now() - 60 * 60 * 1000).toISOString();
-  const recentResult = await service
-    .from('quotations')
-    .select('id', { count: 'exact', head: true })
-    .eq('client_contact', input.clientContact)
-    .gte('created_at', recentWindow);
-  if ((recentResult.count ?? 0) >= 8) {
+  const addressDigest = await fingerprint(request, serviceRoleKey);
+
+  const [contactResult, addressResult] = await Promise.all([
+    service
+      .from('quotations')
+      .select('id', { count: 'exact', head: true })
+      .eq('client_contact', input.clientContact)
+      .gte('created_at', recentWindow),
+    service
+      .from('quotations')
+      .select('id', { count: 'exact', head: true })
+      .eq('client_fingerprint', addressDigest)
+      .gte('created_at', recentWindow),
+  ]);
+
+  if (contactResult.error || addressResult.error) {
+    return jsonResponse(origin, { error: 'The estimate could not be prepared right now.' }, 503);
+  }
+  if (
+    (contactResult.count ?? 0) >= MAX_PER_CONTACT_PER_HOUR ||
+    (addressResult.count ?? 0) >= MAX_PER_ADDRESS_PER_HOUR
+  ) {
     return jsonResponse(
       origin,
       {
-        error: 'Several estimates were already prepared for this contact. Please try again later.',
+        error: 'Several estimates were already prepared recently. Please try again later.',
       },
       429,
     );
@@ -378,14 +488,20 @@ Deno.serve(async (request) => {
 
   const step = Math.max(1, Math.round(Number(settings.rounding_step) || 100));
   const roundAmount = (value: number) => Math.max(0, Math.round(value / step) * step);
+  const roundUpAmount = (value: number) => Math.max(0, Math.ceil(value / step) * step);
 
   const applicable = categories.filter((category) => categoryApplies(category, input));
 
+  // Scale first, then clamp: the floors and caps an administrator configures are peso amounts they
+  // expect to see on the finished quotation, not pre-multiplier intermediates.
   const directItems = applicable
     .filter((category) => category.basis !== 'percent_of_subtotal')
     .map((category) => ({
       category,
-      amount: clampAmount(category, baseAmount(category, input, capacityKwp, batteryKwh)),
+      amount: clampAmount(
+        category,
+        baseAmount(category, input, capacityKwp, batteryKwh) * multiplier,
+      ),
     }))
     .filter((entry) => entry.amount > 0);
 
@@ -398,6 +514,7 @@ Deno.serve(async (request) => {
     );
   }
 
+  // Percentages read the already-scaled subtotal, so the multiplier is never applied twice.
   const percentItems = applicable
     .filter((category) => category.basis === 'percent_of_subtotal')
     .map((category) => ({
@@ -411,14 +528,16 @@ Deno.serve(async (request) => {
     .map((entry) => ({
       key: entry.category.key,
       label: entry.category.label,
-      amount: roundAmount(entry.amount * multiplier),
+      amount: roundAmount(entry.amount),
     }))
     .filter((item) => item.amount > 0);
 
+  // The printed total is the sum of the printed lines, so the column always adds up.
   let total = lineItems.reduce((sum, item) => sum + item.amount, 0);
   const minimumTotal = Number(settings.minimum_total) || 0;
   if (minimumTotal > 0 && total < minimumTotal) {
-    const adjustment = roundAmount(minimumTotal - total);
+    // Rounded up, so topping up can never land below the configured minimum.
+    const adjustment = roundUpAmount(minimumTotal - total);
     if (adjustment > 0) {
       lineItems.push({
         key: 'minimum_project_charge',
@@ -449,6 +568,7 @@ Deno.serve(async (request) => {
     project_name: input.projectName || null,
     project_location: input.location,
     service_area: input.serviceArea,
+    client_fingerprint: addressDigest,
     inputs: {
       projectType: input.projectType,
       electricalService: input.electricalService,
