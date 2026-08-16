@@ -2,6 +2,7 @@ import {
   aboutContent,
   assetUrl,
   documents,
+  mediaItems,
   portfolioItems,
   products,
   promotions,
@@ -28,6 +29,7 @@ export const staticContent = {
   portfolio: portfolioItems,
   services,
   documents,
+  media: mediaItems,
   about: [aboutContent],
 } as const;
 

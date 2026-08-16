@@ -11,6 +11,7 @@ import {
 import type {
   AboutContent,
   DocumentEntry,
+  MediaItem,
   PortfolioEntry,
   Product,
   Promotion,
@@ -28,6 +29,7 @@ export type SiteContent = {
   portfolioItems: PortfolioEntry[];
   services: Service[];
   documents: DocumentEntry[];
+  media: MediaItem[];
   about: AboutContent | null;
 };
 
@@ -52,6 +54,7 @@ const fallbackContent: SiteContent = {
   portfolioItems: [...staticContent.portfolio],
   services: [...staticContent.services],
   documents: [...staticContent.documents],
+  media: [...staticContent.media],
   about: staticContent.about[0],
 };
 
@@ -86,6 +89,9 @@ function materializeSnapshot(snapshot: CmsSnapshot): SiteContent {
     documents: hasCollection(snapshot, 'documents')
       ? (dataFor('documents') as DocumentEntry[])
       : [...fallbackContent.documents],
+    media: hasCollection(snapshot, 'media')
+      ? (dataFor('media') as MediaItem[])
+      : [...fallbackContent.media],
     about: hasCollection(snapshot, 'about') ? (aboutItems[0] ?? null) : fallbackContent.about,
   };
 }

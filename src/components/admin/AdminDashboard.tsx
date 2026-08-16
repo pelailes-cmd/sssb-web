@@ -4,6 +4,7 @@ import {
   ChevronDown,
   ChevronUp,
   CircleUserRound,
+  Clapperboard,
   FileText,
   Image,
   LayoutDashboard,
@@ -54,6 +55,7 @@ const typeIcons = {
   portfolio: Image,
   services: Wrench,
   documents: FileText,
+  media: Clapperboard,
   about: BookOpenText,
 } satisfies Record<ContentType, typeof Package>;
 

@@ -1,3 +1,5 @@
+import type { MediaPlatform } from '../lib/mediaEmbed';
+
 export type NavItem = {
   label: string;
   href: `#${string}`;
@@ -113,6 +115,23 @@ export type PortfolioEntry = {
   verifiedDetails: string[];
 };
 
+/**
+ * A social media post shown in the Media and Content carousel.
+ *
+ * Only the embed URL is stored, never the markup an administrator pasted. `embedWidth` and
+ * `embedHeight` are the embed's natural size, kept so each card can scale the frame to fit
+ * without distorting it. See src/lib/mediaEmbed.ts for how a pasted snippet becomes this.
+ */
+export type MediaItem = {
+  id: string;
+  title: string;
+  platform: MediaPlatform;
+  embedUrl: string;
+  embedWidth: number;
+  embedHeight: number;
+  description?: string;
+};
+
 export type AboutCommitment = {
   title: string;
   copy: string;
@@ -178,6 +197,8 @@ export const navItems: NavItem[] = [
   { label: 'Quotation', href: '#quotation' },
   { label: 'Documentation & Datasheet', href: '#documentation' },
   { label: 'Portfolio', href: '#portfolio' },
+  // Short label on purpose: the desktop navigation is a single non-wrapping row.
+  { label: 'Media', href: '#media' },
   { label: 'Contact Us', href: '#contact' },
   { label: 'About Us', href: '#about' },
 ];
@@ -648,3 +669,51 @@ export const promotions: Promotion[] = [
 export const documents: DocumentEntry[] = [];
 
 export const portfolioItems: PortfolioEntry[] = [];
+
+/**
+ * Starting records for the Media and Content carousel, so the section is populated before an
+ * administrator adds anything. Titles describe the format rather than claiming anything about the
+ * projects shown; replace them in the admin dashboard alongside the real posts.
+ *
+ * The embed addresses are left exactly as the platform issued them. Some contain the older page
+ * handle, which is part of the permanent Facebook URL and cannot be changed without breaking the
+ * embed — that is a link, not branding.
+ */
+export const mediaItems: MediaItem[] = [
+  {
+    id: 'media-featured-reel',
+    title: 'Reel from our Facebook page',
+    platform: 'facebook',
+    embedUrl:
+      'https://www.facebook.com/plugins/video.php?height=476&href=https%3A%2F%2Fwww.facebook.com%2Freel%2F1406919324619321%2F&show_text=true&width=267&t=0',
+    embedWidth: 267,
+    embedHeight: 591,
+  },
+  {
+    id: 'media-page-update',
+    title: 'Update from our Facebook page',
+    platform: 'facebook',
+    embedUrl:
+      'https://www.facebook.com/plugins/post.php?href=https%3A%2F%2Fwww.facebook.com%2FSmartSaveSolarBicol%2Fposts%2Fpfbid02ywmS1WyNbeRL2SMV7k26PNzBRJu9NwuvLuDWruXYWma5zFt1Yc3C1fNkjPRcA5Gl&show_text=true&width=500',
+    embedWidth: 500,
+    embedHeight: 716,
+  },
+  {
+    id: 'media-page-announcement',
+    title: 'Announcement from our Facebook page',
+    platform: 'facebook',
+    embedUrl:
+      'https://www.facebook.com/plugins/post.php?href=https%3A%2F%2Fwww.facebook.com%2FSmartSaveSolarBicol%2Fposts%2Fpfbid034E8X6HxaKhveuiBE1rdoKbprqHtSWhHpcmq3ngGE8UeED3LNQRZUYMqbsQiAKM3ql&show_text=true&width=500',
+    embedWidth: 500,
+    embedHeight: 250,
+  },
+  {
+    id: 'media-featured-video',
+    title: 'Video from our Facebook page',
+    platform: 'facebook',
+    embedUrl:
+      'https://www.facebook.com/plugins/video.php?height=314&href=https%3A%2F%2Fwww.facebook.com%2Freel%2F1981207959506298%2F&show_text=false&width=560&t=0',
+    embedWidth: 560,
+    embedHeight: 314,
+  },
+];

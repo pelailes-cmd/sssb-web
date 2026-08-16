@@ -135,3 +135,25 @@ Every service, product and promotion can be limited to a service area.
 
 Records saved before this feature existed have no location set, so they continue to appear in every
 area until an administrator narrows them.
+
+## 10. Enable the Media and Content section
+
+Media posts are stored in the same `content_items` table as the rest of the website content, so
+they inherit the access rules already in place: visitors can read published records and nothing
+else, and only signed-in administrators can add, change or remove them. No new table or endpoint is
+involved.
+
+1. Open **SQL Editor** and run `supabase/migrations/202608160002_media_content.sql`. It widens the
+   list of permitted collections to include `media`. The script is safe to run more than once.
+2. Sign in and open **Media and Content** in the administrator sidebar.
+3. Choose **Add new**, then paste the embed code copied from the social platform into
+   **Embed code**. Facebook, Instagram, YouTube and TikTok embeds are accepted.
+
+Only the embed address is stored, never the markup that was pasted. The website builds its own
+iframe from that address, so nothing in a pasted snippet can run on the site. An embed from any
+other domain is refused when it is pasted, and refused again if it somehow reaches the database by
+another route.
+
+Use the arrows beside each record to set the order posts appear in, and the **Published** tick to
+show or hide one without deleting it. The four records supplied out of the box are placeholders:
+edit their titles and replace them with the posts you want to feature.

@@ -2,6 +2,13 @@ import { FileUp, LoaderCircle, Save, X } from 'lucide-react';
 import { useMemo, useState, type FormEvent, type ReactNode } from 'react';
 import { uploadSiteAsset } from '../../cms/contentRepository';
 import {
+  isAllowedEmbedUrl,
+  mediaPlatformLabels,
+  mediaPlatforms,
+  parseEmbedCode,
+  type MediaPlatform,
+} from '../../lib/mediaEmbed';
+import {
   isContentData,
   type ContentData,
   type ContentType,
@@ -14,6 +21,7 @@ import {
   type AboutCommitment,
   type AboutContent,
   type DocumentEntry,
+  type MediaItem,
   type PortfolioEntry,
   type Product,
   type ProductImage,
@@ -84,6 +92,15 @@ function createDefaultContent(type: ContentType): ContentData {
         category: '',
         fileType: 'PDF',
         href: '',
+      };
+    case 'media':
+      return {
+        id: makeId('media'),
+        title: '',
+        platform: 'facebook',
+        embedUrl: '',
+        embedWidth: 500,
+        embedHeight: 500,
       };
     case 'about':
       return structuredClone(aboutContent);
@@ -613,6 +630,145 @@ function ServiceFields({
   );
 }
 
+/**
+ * Media and Content fields.
+ *
+ * The administrator pastes the snippet exactly as the platform issued it. It is parsed here and
+ * only the resulting address and natural size are kept — the markup itself is never stored and
+ * never rendered, so nothing an administrator pastes can execute on the public website.
+ */
+function MediaFields({
+  value,
+  onChange,
+}: {
+  value: MediaItem;
+  onChange: (value: MediaItem) => void;
+}) {
+  const [pasted, setPasted] = useState('');
+  const [parseError, setParseError] = useState<string | null>(null);
+
+  const applyEmbed = (code: string) => {
+    setPasted(code);
+    if (!code.trim()) {
+      setParseError(null);
+      return;
+    }
+
+    const { embed, error } = parseEmbedCode(code);
+    if (!embed) {
+      setParseError(error ?? 'This embed could not be read.');
+      return;
+    }
+
+    setParseError(null);
+    onChange({
+      ...value,
+      embedUrl: embed.url,
+      embedWidth: embed.width,
+      embedHeight: embed.height,
+      platform: embed.platform,
+    });
+  };
+
+  const previewScale = Math.min(1, 320 / value.embedHeight, 460 / value.embedWidth);
+
+  return (
+    <>
+      <Field label="Title" hint="Shown under the post on the website." full>
+        <input
+          value={value.title}
+          required
+          onChange={(event) => onChange({ ...value, title: event.target.value })}
+        />
+      </Field>
+
+      <Field label="Platform">
+        <select
+          value={value.platform}
+          onChange={(event) =>
+            onChange({ ...value, platform: event.target.value as MediaPlatform })
+          }
+        >
+          {mediaPlatforms.map((platform) => (
+            <option key={platform} value={platform}>
+              {mediaPlatformLabels[platform]}
+            </option>
+          ))}
+        </select>
+      </Field>
+
+      <Field label="Description" hint="Optional line shown beneath the title.">
+        <input
+          value={value.description ?? ''}
+          onChange={(event) => onChange({ ...value, description: event.target.value || undefined })}
+        />
+      </Field>
+
+      <Field
+        label="Embed code"
+        hint="Paste the whole embed code from the platform, or just the embed address. Facebook, Instagram, YouTube and TikTok embeds are accepted."
+        full
+      >
+        <textarea
+          rows={5}
+          value={pasted}
+          placeholder='<iframe src="https://www.facebook.com/plugins/post.php?..." …></iframe>'
+          onChange={(event) => applyEmbed(event.target.value)}
+        />
+      </Field>
+
+      {parseError ? (
+        <p className="admin-editor__error admin-field--full" role="alert">
+          {parseError}
+        </p>
+      ) : null}
+
+      <div className="admin-field admin-field--full">
+        <span>Stored embed address</span>
+        <code className="admin-media-url">{value.embedUrl || 'Nothing stored yet.'}</code>
+        <small>
+          Only this address is saved. It is rebuilt into an iframe by the website, so the original
+          markup never reaches a visitor.
+        </small>
+      </div>
+
+      <div className="admin-field admin-field--full">
+        <span>Preview</span>
+        <div className="admin-media-preview">
+          {isAllowedEmbedUrl(value.embedUrl) ? (
+            <div
+              className="admin-media-preview__stage"
+              style={{ height: `${value.embedHeight * previewScale}px` }}
+            >
+              <iframe
+                title={`Preview of ${value.title || 'the media post'}`}
+                src={value.embedUrl}
+                loading="lazy"
+                referrerPolicy="strict-origin-when-cross-origin"
+                allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share"
+                allowFullScreen
+                style={{
+                  width: `${value.embedWidth}px`,
+                  height: `${value.embedHeight}px`,
+                  transform: `translate(-50%, -50%) scale(${previewScale})`,
+                }}
+              />
+            </div>
+          ) : (
+            <p className="admin-media-preview__empty">
+              Paste a supported embed to see how it will appear.
+            </p>
+          )}
+        </div>
+        <small>
+          Natural size {value.embedWidth} × {value.embedHeight}. The website scales each embed to
+          fit its card without distorting it.
+        </small>
+      </div>
+    </>
+  );
+}
+
 function DocumentFields({
   value,
   onChange,
@@ -795,6 +951,14 @@ function validateDraft(type: ContentType, data: ContentData) {
         ? null
         : 'Document title and file are required.';
     }
+    case 'media': {
+      const media = data as MediaItem;
+      if (!media.title.trim()) return 'A media title is required.';
+      if (!isAllowedEmbedUrl(media.embedUrl)) {
+        return 'Paste an embed from a supported platform before saving.';
+      }
+      return null;
+    }
     case 'about': {
       const about = data as AboutContent;
       return about.title.trim() && about.description.trim() && about.quote.trim()
@@ -855,6 +1019,9 @@ export function ContentEditor({
         ) : null}
         {contentType === 'documents' ? (
           <DocumentFields value={draft as DocumentEntry} onChange={setDraft} />
+        ) : null}
+        {contentType === 'media' ? (
+          <MediaFields value={draft as MediaItem} onChange={setDraft} />
         ) : null}
         {contentType === 'about' ? (
           <AboutFields value={draft as AboutContent} onChange={setDraft} />
