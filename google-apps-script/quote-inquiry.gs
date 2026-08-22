@@ -28,15 +28,51 @@ var ROOF_LABELS = {
   other: 'Other',
 };
 
+/**
+ * Writes to the execution log. New projects run on V8, where `console` exists, but a project left
+ * on the older runtime only has `Logger`, and an unguarded `console` call there would itself throw.
+ */
+function logLine(message) {
+  if (typeof console !== 'undefined' && console.log) console.log(message);
+  else Logger.log(message);
+}
+
 function json(payload) {
   return ContentService.createTextOutput(JSON.stringify(payload)).setMimeType(
     ContentService.MimeType.JSON,
   );
 }
 
-/** Lets you confirm the deployment is live by opening the web app URL in a browser. */
+/**
+ * Health check: open the web app URL in a browser to see it.
+ *
+ * It reports whether a recipient is configured and whether this deployment is actually allowed to
+ * send mail, which is the difference between "set the property" and "re-authorise the script" —
+ * the two things that go wrong after a first deployment. No address is included, since the page is
+ * public.
+ */
 function doGet() {
-  return json({ ok: true, service: 'quote-inquiry' });
+  var recipient = resolveRecipient();
+  var mailAuthorised = false;
+  var quotaRemaining = null;
+
+  try {
+    // Reading the quota needs the same permission as sending, so it fails in exactly the case
+    // where sending would fail for want of authorisation.
+    quotaRemaining = MailApp.getRemainingDailyQuota();
+    mailAuthorised = true;
+  } catch (quotaError) {
+    mailAuthorised = false;
+  }
+
+  return json({
+    ok: true,
+    service: 'quote-inquiry',
+    recipientConfigured: !recipient.error,
+    recipientProblem: recipient.error || null,
+    mailAuthorised: mailAuthorised,
+    quotaRemaining: quotaRemaining,
+  });
 }
 
 function text(value) {
@@ -141,6 +177,98 @@ function buildEmail(inquiry) {
   return { plain: plain, html: html };
 }
 
+/**
+ * Works out where to send, and says why if it cannot.
+ *
+ * A stray space or a name pasted in place of an address is a common mistake, and it surfaces as a
+ * failure at send time rather than at configuration time, so it is checked here instead.
+ */
+function resolveRecipient() {
+  var configured = PropertiesService.getScriptProperties().getProperty('RECIPIENT_EMAIL');
+  var address = configured ? String(configured).trim() : '';
+
+  if (!address) {
+    try {
+      address = Session.getEffectiveUser().getEmail();
+    } catch (lookupError) {
+      return {
+        error:
+          'No RECIPIENT_EMAIL is set and the owner address could not be read. Add a ' +
+          'RECIPIENT_EMAIL script property.',
+      };
+    }
+  }
+
+  if (!address) {
+    return { error: 'The inquiry mailbox is not configured. Add a RECIPIENT_EMAIL property.' };
+  }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(address)) {
+    return {
+      error: 'The RECIPIENT_EMAIL property is not a valid email address: "' + address + '".',
+    };
+  }
+
+  return { address: address };
+}
+
+/**
+ * Sends the notification, falling back to a plain message if the richer one is refused.
+ *
+ * The formatted version sets a sender name, a reply-to and an HTML body. If any of those is what
+ * the account objects to, the plain three-argument form usually still goes through — and an
+ * inquiry that arrives looking basic is far better than one that never arrives.
+ */
+function deliver(recipient, inquiry) {
+  var body = buildEmail(inquiry);
+  var subject = 'New quote request - ' + inquiry.fullName;
+
+  try {
+    MailApp.sendEmail({
+      to: recipient,
+      // Replying to the notification reaches the customer directly.
+      replyTo: inquiry.email,
+      subject: subject,
+      body: body.plain,
+      htmlBody: body.html,
+      name: 'Smart Save Solar website',
+    });
+    return { ok: true };
+  } catch (richError) {
+    logLine('Formatted send failed, trying plain: ' + richError);
+    try {
+      MailApp.sendEmail(recipient, subject, body.plain);
+      return { ok: true };
+    } catch (plainError) {
+      return { ok: false, reason: String(plainError) };
+    }
+  }
+}
+
+/**
+ * Run this from the Apps Script editor to diagnose delivery.
+ *
+ * Running it here, rather than through the website, does two useful things: it prompts for any
+ * permission the script has not been granted yet, which is the usual reason sending fails after a
+ * fresh deployment; and it reports the exact error rather than the tidied-up message a visitor
+ * sees. Select `testMailer` in the toolbar and press Run, then read the execution log.
+ */
+function testMailer() {
+  var recipient = resolveRecipient();
+  if (recipient.error) {
+    throw new Error(recipient.error);
+  }
+
+  logLine('Sending a test message to ' + recipient.address);
+  MailApp.sendEmail({
+    to: recipient.address,
+    subject: 'Smart Save Solar website - mailer test',
+    body: 'If you are reading this, the quote inquiry mailer can send email.',
+    name: 'Smart Save Solar website',
+  });
+  logLine('Sent. Remaining quota today: ' + MailApp.getRemainingDailyQuota());
+  return 'Sent to ' + recipient.address;
+}
+
 function doPost(e) {
   var payload;
   try {
@@ -164,27 +292,22 @@ function doPost(e) {
     });
   }
 
-  var recipient =
-    PropertiesService.getScriptProperties().getProperty('RECIPIENT_EMAIL') ||
-    Session.getEffectiveUser().getEmail();
-  if (!recipient) {
-    return json({ ok: false, error: 'The inquiry mailbox is not configured.' });
+  var recipient = resolveRecipient();
+  if (recipient.error) {
+    logLine('Recipient unusable: ' + recipient.error);
+    return json({ ok: false, error: recipient.error, detail: recipient.error });
   }
 
-  var body = buildEmail(checked.inquiry);
-
-  try {
-    MailApp.sendEmail({
-      to: recipient,
-      // Replying to the notification reaches the customer directly.
-      replyTo: checked.inquiry.email,
-      subject: 'New quote request - ' + checked.inquiry.fullName,
-      body: body.plain,
-      htmlBody: body.html,
-      name: 'Smart Save Solar website',
+  var sent = deliver(recipient.address, checked.inquiry);
+  if (!sent.ok) {
+    // The reason is logged for the operator and returned as `detail`, which the website does not
+    // display. Losing an inquiry to a message nobody can act on is the failure worth avoiding.
+    logLine('Send failed: ' + sent.reason);
+    return json({
+      ok: false,
+      error: 'The inquiry could not be emailed. Please try again.',
+      detail: sent.reason,
     });
-  } catch (sendError) {
-    return json({ ok: false, error: 'The inquiry could not be emailed. Please try again.' });
   }
 
   return json({ ok: true });

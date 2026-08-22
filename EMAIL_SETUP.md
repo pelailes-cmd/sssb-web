@@ -73,6 +73,35 @@ _"Submission success, we'll get back to you right away."_ and the email should a
 seconds. Replying to that email goes straight to the customer, because their address is set as the
 reply-to.
 
+## If an inquiry says "The inquiry could not be emailed"
+
+That message means everything worked except the send itself: the request reached Google, passed the
+origin, spam and validation checks, and found a recipient. Two things cause it, and there is a
+quick way to tell them apart.
+
+**Open the web app URL in a browser.** The health check reports which:
+
+```json
+{ "recipientConfigured": true, "mailAuthorised": true, "quotaRemaining": 97 }
+```
+
+- `"mailAuthorised": false` — the deployment has not been granted permission to send mail. This is
+  the usual cause on a first deployment, and it happens when the project was deployed before the
+  code was pasted in, so Google never asked for the mail permission.
+- `"recipientConfigured": false` — `recipientProblem` says what is wrong with `RECIPIENT_EMAIL`,
+  usually a stray space or a name typed where an address belongs.
+
+**Then run the mailer directly.** In the script editor choose `testMailer` from the function list
+beside **Run**, and press Run. This is the fastest fix for the authorisation case: it prompts for
+any missing permission there and then. If something else is wrong it reports the exact error in the
+execution log, rather than the tidied-up message a visitor sees.
+
+Once `testMailer` sends you an email, go to **Deploy → Manage deployments → edit → Version: New
+version** so the live web app picks up the permission, and try the form again.
+
+If you would rather read the failure directly, every send error is written to the execution log:
+open **Executions** in the left sidebar and look at the most recent `doPost` entry.
+
 ## What to know about this approach
 
 **The endpoint address is public.** It is compiled into the website, as any address a browser calls
