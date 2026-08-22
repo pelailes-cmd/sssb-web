@@ -11,8 +11,17 @@ database table involved. Any Google account that can receive the mail can host i
 
 1. Open <https://script.google.com> signed in as the account that should own the mailer, and choose
    **New project**.
-2. Delete the placeholder code and paste the whole of `google-apps-script/quote-inquiry.gs`.
-3. Rename the project to something recognisable, such as `Smart Save Solar quote inquiries`.
+2. The new project opens with a file called `Code.gs` containing an empty `myFunction`. Select all
+   of it, delete it, and paste the whole of `google-apps-script/quote-inquiry.gs` in its place.
+
+   Leave the file named `Code.gs`. Apps Script merges every `.gs` file in a project into one shared
+   scope and never looks at the file names — it only needs `doPost` and `doGet` to exist somewhere
+   in the project. `quote-inquiry.gs` is simply the name the code is stored under in this
+   repository. Renaming the file to match changes nothing either way.
+
+3. Rename the **project** — the "Untitled project" title at the top left — to something you will
+   recognise later, such as `Smart Save Solar quote inquiries`. This one is worth doing, because it
+   is what appears in your Apps Script project list.
 
 ## 2. Set the recipient
 
@@ -37,8 +46,14 @@ If the property is missing, the script falls back to the Google account that own
 6. Copy the **Web app URL**. It looks like
    `https://script.google.com/macros/s/AKfy…/exec`.
 
-You can confirm it is live by opening that URL in a browser: it should print
-`{"ok":true,"service":"quote-inquiry"}`.
+   This is not the same as the link in your browser's address bar while editing, and not the Drive
+   share link for the project. Only the deployment URL has `/macros/s/` in it and ends in `/exec`.
+   Opening either of the others gives a Google Drive page reading "Sorry, the file cannot be opened
+   at this time", because Drive cannot display a script file. If you lose it, it is under
+   **Deploy → Manage deployments**, next to the active Web app deployment.
+
+You can confirm it is live by opening that URL in a browser. It prints a small status object
+reporting whether a recipient is configured and whether this deployment may send mail.
 
 ## 4. Point the website at it
 
@@ -63,6 +78,35 @@ Open the site, choose **Get a Quote**, fill every field and submit. You should s
 _"Submission success, we'll get back to you right away."_ and the email should arrive within a few
 seconds. Replying to that email goes straight to the customer, because their address is set as the
 reply-to.
+
+## If an inquiry says "The inquiry could not be emailed"
+
+That message means everything worked except the send itself: the request reached Google, passed the
+origin, spam and validation checks, and found a recipient. Two things cause it, and there is a
+quick way to tell them apart.
+
+**Open the web app URL in a browser.** The health check reports which:
+
+```json
+{ "recipientConfigured": true, "mailAuthorised": true, "quotaRemaining": 97 }
+```
+
+- `"mailAuthorised": false` — the deployment has not been granted permission to send mail. This is
+  the usual cause on a first deployment, and it happens when the project was deployed before the
+  code was pasted in, so Google never asked for the mail permission.
+- `"recipientConfigured": false` — `recipientProblem` says what is wrong with `RECIPIENT_EMAIL`,
+  usually a stray space or a name typed where an address belongs.
+
+**Then run the mailer directly.** In the script editor choose `testMailer` from the function list
+beside **Run**, and press Run. This is the fastest fix for the authorisation case: it prompts for
+any missing permission there and then. If something else is wrong it reports the exact error in the
+execution log, rather than the tidied-up message a visitor sees.
+
+Once `testMailer` sends you an email, go to **Deploy → Manage deployments → edit → Version: New
+version** so the live web app picks up the permission, and try the form again.
+
+If you would rather read the failure directly, every send error is written to the execution log:
+open **Executions** in the left sidebar and look at the most recent `doPost` entry.
 
 ## What to know about this approach
 
