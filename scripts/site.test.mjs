@@ -238,8 +238,10 @@ test('the public quotation surface never handles pricing rules', async () => {
   const publicFiles = [
     'src/components/quotation/QuotationWizard.tsx',
     'src/components/quotation/QuotationResult.tsx',
-    'src/components/quotation/QuotationSection.tsx',
+    'src/components/quotation/QuotationEstimateDialog.tsx',
+    'src/components/quotation/QuoteInquiryDialog.tsx',
     'src/lib/quotationDocument.ts',
+    'src/lib/quoteInquiry.ts',
     'src/lib/docgen/png.ts',
     'src/lib/docgen/pdf.ts',
     'src/lib/docgen/docx.ts',

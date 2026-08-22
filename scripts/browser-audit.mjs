@@ -654,7 +654,7 @@ try {
         issues.push('3D product dialog lacks an accessible model label');
     }
     if (entry.width >= 1180) {
-      if (entry.layout.desktopNavCount !== 10) issues.push('desktop nav count');
+      if (entry.layout.desktopNavCount !== 9) issues.push('desktop nav count');
       if (!entry.layout.headerAdminVisible) issues.push('desktop administrator login button');
     }
     if (entry.width < 1180) {

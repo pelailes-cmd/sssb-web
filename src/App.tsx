@@ -12,7 +12,8 @@ import { MediaSection } from './components/media/MediaSection';
 import { PortfolioSection } from './components/PortfolioSection';
 import { ProductCatalog } from './components/ProductCatalog';
 import { PromotionsSection } from './components/PromotionsSection';
-import { QuotationSection } from './components/quotation/QuotationSection';
+import { QuotationEstimateDialog } from './components/quotation/QuotationEstimateDialog';
+import { QuoteInquiryDialog } from './components/quotation/QuoteInquiryDialog';
 import { ServicesSection } from './components/ServicesSection';
 import { business } from './data/siteData';
 import { useRevealAnimations } from './hooks/useRevealAnimations';
@@ -35,6 +36,19 @@ function AdminOverlays() {
     <Suspense fallback={null}>
       {loginOpen ? <AdminLoginDialog /> : null}
       {dashboardOpen ? <AdminDashboard /> : null}
+    </Suspense>
+  );
+}
+
+/**
+ * Both quote journeys live in dialogs rather than on the page: the short inquiry from the header,
+ * and the detailed estimator from the footer.
+ */
+function QuoteDialogs() {
+  return (
+    <Suspense fallback={null}>
+      <QuoteInquiryDialog />
+      <QuotationEstimateDialog />
     </Suspense>
   );
 }
@@ -74,7 +88,6 @@ export default function App() {
         <ServicesSection />
         <ProductCatalog />
         <PromotionsSection />
-        <QuotationSection />
         <DocumentationSection />
         <PortfolioSection />
         <MediaSection />
@@ -82,6 +95,7 @@ export default function App() {
         <AboutSection />
       </main>
       <Footer />
+      <QuoteDialogs />
       <AdminOverlays />
       <a
         className={`mobile-call-fab${showMobileCall ? ' is-visible' : ''}`}
