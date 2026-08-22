@@ -46,8 +46,14 @@ If the property is missing, the script falls back to the Google account that own
 6. Copy the **Web app URL**. It looks like
    `https://script.google.com/macros/s/AKfy…/exec`.
 
-You can confirm it is live by opening that URL in a browser: it should print
-`{"ok":true,"service":"quote-inquiry"}`.
+   This is not the same as the link in your browser's address bar while editing, and not the Drive
+   share link for the project. Only the deployment URL has `/macros/s/` in it and ends in `/exec`.
+   Opening either of the others gives a Google Drive page reading "Sorry, the file cannot be opened
+   at this time", because Drive cannot display a script file. If you lose it, it is under
+   **Deploy → Manage deployments**, next to the active Web app deployment.
+
+You can confirm it is live by opening that URL in a browser. It prints a small status object
+reporting whether a recipient is configured and whether this deployment may send mail.
 
 ## 4. Point the website at it
 
