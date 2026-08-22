@@ -11,8 +11,17 @@ database table involved. Any Google account that can receive the mail can host i
 
 1. Open <https://script.google.com> signed in as the account that should own the mailer, and choose
    **New project**.
-2. Delete the placeholder code and paste the whole of `google-apps-script/quote-inquiry.gs`.
-3. Rename the project to something recognisable, such as `Smart Save Solar quote inquiries`.
+2. The new project opens with a file called `Code.gs` containing an empty `myFunction`. Select all
+   of it, delete it, and paste the whole of `google-apps-script/quote-inquiry.gs` in its place.
+
+   Leave the file named `Code.gs`. Apps Script merges every `.gs` file in a project into one shared
+   scope and never looks at the file names — it only needs `doPost` and `doGet` to exist somewhere
+   in the project. `quote-inquiry.gs` is simply the name the code is stored under in this
+   repository. Renaming the file to match changes nothing either way.
+
+3. Rename the **project** — the "Untitled project" title at the top left — to something you will
+   recognise later, such as `Smart Save Solar quote inquiries`. This one is worth doing, because it
+   is what appears in your Apps Script project list.
 
 ## 2. Set the recipient
 
