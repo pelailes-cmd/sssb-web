@@ -6632,3 +6632,206 @@ dialog.admin-dashboard[open] {
     border: 1px solid CanvasText !important;
   }
 }
+
+/* Get a Quote — header call to action */
+.header-quote {
+  display: inline-flex;
+  min-height: 2.8rem;
+  align-items: center;
+  gap: 0.5rem;
+  /* Same pill as the call button beside it; white rather than solar so the two read as a pair
+     instead of competing, and so both stay legible on the dark header. */
+  padding-inline: 1rem;
+  border: 0;
+  border-radius: 999px;
+  color: var(--color-navy-950);
+  background: var(--color-white);
+  font-size: 0.8rem;
+  font-weight: 800;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color var(--duration-fast) ease,
+    translate var(--duration-fast) var(--ease-standard);
+}
+
+.header-quote:hover {
+  translate: 0 -1px;
+  background: var(--color-solar-soft);
+}
+
+.header-quote svg {
+  flex: 0 0 auto;
+}
+
+.mobile-menu__quote {
+  width: 100%;
+  margin-top: 0.75rem;
+}
+
+.site-footer__quote {
+  padding: 0;
+  border: 0;
+  color: var(--color-solar);
+  background: none;
+  font: inherit;
+  font-weight: 750;
+  text-align: left;
+  cursor: pointer;
+}
+
+.site-footer__quote:hover {
+  text-decoration: underline;
+}
+
+/* Quote dialogs */
+dialog.quote-dialog {
+  width: min(94vw, 640px);
+  max-height: min(92svh, 900px);
+  padding: clamp(1.35rem, 4vw, 2.4rem);
+  color: var(--color-text);
+  border: 0;
+  border-radius: var(--radius-lg);
+  background:
+    radial-gradient(circle at 88% 2%, rgba(120, 217, 233, 0.24), transparent 34%),
+    var(--color-white);
+  box-shadow: var(--shadow-lg);
+  overflow-y: auto;
+}
+
+dialog.quote-dialog--wide {
+  width: min(96vw, 980px);
+}
+
+dialog.quote-dialog::backdrop {
+  background: rgba(1, 12, 22, 0.78);
+  backdrop-filter: blur(10px);
+}
+
+dialog.quote-dialog[open] {
+  animation: admin-dialog-in 320ms var(--ease-out) both;
+}
+
+.quote-dialog__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.4rem;
+}
+
+.quote-dialog__head h2 {
+  margin: 0;
+  font-size: clamp(1.25rem, 2.6vw, 1.7rem);
+  line-height: 1.2;
+}
+
+.quote-dialog__head .eyebrow {
+  margin-bottom: 0.5rem;
+}
+
+.quote-dialog__lede {
+  margin: 0 0 1.4rem;
+  color: var(--color-muted);
+  font-size: 0.88rem;
+}
+
+.quote-dialog__form .form-grid {
+  margin: 0;
+}
+
+.quote-dialog__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.7rem;
+  margin-top: 1.8rem;
+  padding-top: 1.4rem;
+  border-top: 1px solid var(--color-border);
+}
+
+/* Off-screen rather than display:none, so automated form fillers still find it. */
+.quote-dialog__trap {
+  position: absolute;
+  left: -9999px;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
+
+.quote-dialog__success {
+  display: grid;
+  justify-items: center;
+  gap: 0.8rem;
+  padding: 1.5rem 0.5rem 0.5rem;
+  text-align: center;
+}
+
+.quote-dialog__success svg {
+  width: 3rem;
+  height: 3rem;
+  color: var(--color-success);
+}
+
+.quote-dialog__success h3 {
+  max-width: 26ch;
+  margin: 0;
+  font-size: clamp(1.1rem, 2.4vw, 1.35rem);
+  line-height: 1.3;
+}
+
+.quote-dialog__success p {
+  max-width: 42ch;
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 0.88rem;
+}
+
+.quote-dialog__success .button {
+  margin-top: 0.8rem;
+}
+
+/* The estimator keeps its own layout; inside a dialog it only needs the outer frame removed. */
+.quote-dialog__body .quotation-builder {
+  margin-top: 0;
+}
+
+.quote-dialog__body .quotation-form,
+.quote-dialog__body .quotation-result {
+  padding: 0;
+  border: 0;
+  background: none;
+  box-shadow: none;
+}
+
+.quote-dialog__body .quotation-skeleton {
+  min-height: 22rem;
+  margin-top: 0;
+}
+
+@media (max-width: 699px) {
+  .quote-dialog__actions {
+    flex-direction: column-reverse;
+  }
+
+  .quote-dialog__actions .button {
+    width: 100%;
+  }
+}
+
+/* Below the call button's breakpoint the header has room for one action only, and the quote is
+   the one that has no floating equivalent. */
+@media (max-width: 419px) {
+  .header-quote span {
+    display: none;
+  }
+
+  .header-quote {
+    padding-inline: 0.85rem;
+  }
+}
+
+@media (forced-colors: active) {
+  dialog.quote-dialog {
+    border: 1px solid CanvasText !important;
+  }
+}

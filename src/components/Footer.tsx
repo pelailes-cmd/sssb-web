@@ -1,7 +1,10 @@
 import { ArrowUp, MapPin, Phone } from 'lucide-react';
+import { useQuoteDialog } from '../cms/QuoteDialogContext';
 import { assetUrl, business, navItems } from '../data/siteData';
 
 export function Footer() {
+  const { openEstimate } = useQuoteDialog();
+
   return (
     <footer className="site-footer">
       <div className="container site-footer__top">
@@ -32,6 +35,13 @@ export function Footer() {
                   <a href={item.href}>{item.label}</a>
                 </li>
               ))}
+              {/* Sits directly below About Us. The detailed estimator is no longer a section of
+                  the page, so this is where it is reached from. */}
+              <li>
+                <button className="site-footer__quote" type="button" onClick={openEstimate}>
+                  Get a free quote now!
+                </button>
+              </li>
             </ul>
           </nav>
         </div>

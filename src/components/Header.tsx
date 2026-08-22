@@ -1,6 +1,7 @@
-import { LogIn, Menu, PhoneCall, ShieldCheck, X } from 'lucide-react';
+import { FileText, LogIn, Menu, PhoneCall, ShieldCheck, X } from 'lucide-react';
 import { useEffect, useId, useRef, useState } from 'react';
 import { useAdmin } from '../cms/AdminContext';
+import { useQuoteDialog } from '../cms/QuoteDialogContext';
 import { assetUrl, business, navItems } from '../data/siteData';
 
 const focusableSelector =
@@ -15,6 +16,7 @@ export function Header() {
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const { isAdmin, openAdmin, status: adminStatus } = useAdmin();
+  const { openInquiry } = useQuoteDialog();
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 20);
@@ -109,6 +111,11 @@ export function Header() {
             ))}
           </ul>
         </nav>
+
+        <button className="header-quote" type="button" onClick={openInquiry}>
+          <FileText aria-hidden="true" size={18} />
+          <span>Get a Quote</span>
+        </button>
 
         <a
           className="header-call"
@@ -206,6 +213,18 @@ export function Header() {
               <LogIn aria-hidden="true" size={19} />
             )}
             {isAdmin ? 'Open admin dashboard' : 'Administrator login'}
+          </button>
+          <button
+            className="button button--light mobile-menu__quote"
+            type="button"
+            tabIndex={menuOpen ? 0 : -1}
+            onClick={() => {
+              closeMenu();
+              openInquiry();
+            }}
+          >
+            <FileText aria-hidden="true" size={19} />
+            Get a Quote
           </button>
           <a
             className="button button--solar mobile-menu__call"

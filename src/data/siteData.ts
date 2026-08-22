@@ -194,7 +194,6 @@ export const navItems: NavItem[] = [
   { label: 'Services', href: '#services' },
   { label: 'Products', href: '#products' },
   { label: 'Promotions', href: '#promotions' },
-  { label: 'Quotation', href: '#quotation' },
   { label: 'Documentation & Datasheet', href: '#documentation' },
   { label: 'Portfolio', href: '#portfolio' },
   // Short label on purpose: the desktop navigation is a single non-wrapping row.

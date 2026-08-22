@@ -17,7 +17,7 @@
     "assets": "node scripts/process-assets.mjs",
     "audit:browser": "node scripts/browser-audit.mjs",
     "pretest": "npm run assets",
-    "test": "node --test --experimental-strip-types scripts/site.test.mjs scripts/pricing.test.mjs scripts/media.test.mjs",
+    "test": "node --test --experimental-strip-types scripts/site.test.mjs scripts/pricing.test.mjs scripts/media.test.mjs scripts/inquiry.test.mjs",
     "preview": "vite preview --host 127.0.0.1"
   },
   "dependencies": {
