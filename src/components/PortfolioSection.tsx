@@ -1,6 +1,7 @@
 import { ArrowRight, Camera, ImagePlus, MapPin, Zap } from 'lucide-react';
 import { useSiteContent } from '../cms/SiteContentContext';
 import { SectionHeading } from './SectionHeading';
+import { QuoteButton } from './QuoteButton';
 import { SectionScene } from './SectionScene';
 
 export function PortfolioSection() {
@@ -9,12 +10,17 @@ export function PortfolioSection() {
     <section id="portfolio" className="section portfolio-section">
       <SectionScene variant="portfolio" />
       <div className="container">
-        <SectionHeading
-          eyebrow="Portfolio"
-          title="Project stories should be specific—and verifiable"
-          description="No completed-project photos or project records were supplied, so this section is intentionally ready for real work instead of padded with fictional installations."
-          inverse
-        />
+        <div className="section-heading-row">
+          <SectionHeading
+            eyebrow="Portfolio"
+            title="Project stories should be specific—and verifiable"
+            description="No completed-project photos or project records were supplied, so this section is intentionally ready for real work instead of padded with fictional installations."
+            inverse
+          />
+          <div className="section-actions" data-reveal>
+            <QuoteButton />
+          </div>
+        </div>
 
         {portfolioItems.length ? (
           <div className="portfolio-grid">

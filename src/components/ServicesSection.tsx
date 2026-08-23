@@ -13,6 +13,7 @@ import { useSiteContent } from '../cms/SiteContentContext';
 import { isAvailableInArea, serviceAreaOptions, type Service } from '../data/siteData';
 import { SectionHeading } from './SectionHeading';
 import { SectionScene } from './SectionScene';
+import { QuoteButton } from './QuoteButton';
 import { ServiceAreaFilter } from './ServiceAreaFilter';
 
 const iconMap: Record<Service['icon'], typeof Home> = {
@@ -43,10 +44,13 @@ export function ServicesSection() {
             description="The service list stays deliberately grounded in the supplied cover and business message, so future offerings can be added without overstating what is currently confirmed."
             inverse
           />
-          <a className="button button--light" href="#contact" data-reveal>
-            Get a Solar Consultation
-            <ArrowRight aria-hidden="true" size={18} />
-          </a>
+          <div className="section-actions" data-reveal>
+            <QuoteButton />
+            <a className="button button--light" href="#contact">
+              Get a Solar Consultation
+              <ArrowRight aria-hidden="true" size={18} />
+            </a>
+          </div>
         </div>
 
         <ServiceAreaFilter sectionLabel="services" inverse />

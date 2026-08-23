@@ -2,6 +2,7 @@ import { ArrowDown, ArrowRight, Headphones, MapPin, ShieldCheck, Wrench } from '
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { business } from '../data/siteData';
 import { useReducedMotion } from '../hooks/useReducedMotion';
+import { QuoteButton } from './QuoteButton';
 
 const SolarScene = lazy(() => import('./SolarScene'));
 
@@ -87,7 +88,8 @@ export function Hero() {
               warranty assistance, and dependable after-sales service.
             </p>
             <div className="hero__actions">
-              <a className="button button--solar" href="#services">
+              <QuoteButton />
+              <a className="button button--light" href="#services">
                 Explore Our Solutions
                 <ArrowRight aria-hidden="true" size={18} />
               </a>

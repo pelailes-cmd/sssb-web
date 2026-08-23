@@ -5,6 +5,7 @@ import { useSiteContent } from '../cms/SiteContentContext';
 import { isAvailableInArea, serviceAreaOptions } from '../data/siteData';
 import { SectionHeading } from './SectionHeading';
 import { SectionScene } from './SectionScene';
+import { QuoteButton } from './QuoteButton';
 import { ServiceAreaFilter } from './ServiceAreaFilter';
 
 export function PromotionsSection() {
@@ -81,10 +82,13 @@ export function PromotionsSection() {
                   <PackageCheck aria-hidden="true" />
                   <span>{promotion.condition}</span>
                 </p>
-                <a className="button button--primary" href="#contact">
-                  Confirm this offer
-                  <ArrowRight aria-hidden="true" size={18} />
-                </a>
+                <div className="section-actions">
+                  <QuoteButton />
+                  <a className="button button--primary" href="#contact">
+                    Confirm this offer
+                    <ArrowRight aria-hidden="true" size={18} />
+                  </a>
+                </div>
               </div>
             </div>
           </article>

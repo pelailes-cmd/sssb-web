@@ -135,3 +135,25 @@ test('the estimator is reachable but is no longer a page section', async () => {
   assert.match(header, /Get a Quote/);
   assert.match(header, /header-quote/);
 });
+
+test('every section the client asked for offers the quote button', async () => {
+  // Home, Services, Promotions, Portfolio and Contact Us each carry a way into the short form.
+  const sections = {
+    home: 'src/components/Hero.tsx',
+    services: 'src/components/ServicesSection.tsx',
+    promotions: 'src/components/PromotionsSection.tsx',
+    portfolio: 'src/components/PortfolioSection.tsx',
+    contact: 'src/components/ContactSection.tsx',
+  };
+
+  for (const [section, file] of Object.entries(sections)) {
+    const source = await readFile(path.join(root, file), 'utf8');
+    assert.match(source, /<QuoteButton/, `${section} should offer a quote button`);
+    assert.match(source, /import \{ QuoteButton \}/, `${section} should import the shared button`);
+  }
+
+  // One component behind all of them, so the wording and the action cannot drift apart.
+  const button = await readFile(path.join(root, 'src/components/QuoteButton.tsx'), 'utf8');
+  assert.match(button, /Get a Quote/);
+  assert.match(button, /openInquiry/);
+});

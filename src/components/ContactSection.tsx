@@ -12,6 +12,7 @@ import { useState, type FormEvent } from 'react';
 import { useSiteContent } from '../cms/SiteContentContext';
 import { business } from '../data/siteData';
 import { SectionHeading } from './SectionHeading';
+import { QuoteButton } from './QuoteButton';
 import { SectionScene } from './SectionScene';
 
 type FormValues = {
@@ -121,6 +122,9 @@ export function ContactSection() {
                 For the fastest confirmed contact path, call the number printed consistently across
                 the supplied cover, product, and promotion materials.
               </p>
+              <div className="section-actions section-actions--stacked">
+                <QuoteButton variant="primary" />
+              </div>
             </div>
 
             <a className="contact-card contact-card--phone" href={business.phoneHref}>
