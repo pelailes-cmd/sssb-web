@@ -6818,15 +6818,102 @@ dialog.quote-dialog[open] {
   }
 }
 
-/* Below the call button's breakpoint the header has room for one action only, and the quote is
-   the one that has no floating equivalent. */
-@media (max-width: 419px) {
+/* Measured: the labelled button needs 133px, and the room left beside the brand is 130px at 360px
+   but 160px at 390px. So the label survives on most phones and is dropped only on the narrowest,
+   where keeping it would squeeze the menu button below its touch target. */
+@media (max-width: 369px) {
   .header-quote span {
     display: none;
   }
 
   .header-quote {
     padding-inline: 0.85rem;
+  }
+}
+
+/* Once the desktop navigation is hidden the header actions gather on the right, next to the menu
+   button. Without this the quote button is left stranded beside the brand with the whole width of
+   the bar empty after it. */
+@media (max-width: 1179px) {
+  .header-quote {
+    margin-left: auto;
+  }
+
+  .menu-toggle {
+    margin-left: 0;
+    /* The quote button must never be able to eat into the menu button's touch target. */
+    flex-shrink: 0;
+  }
+}
+
+/* Quote actions */
+.quote-button {
+  white-space: nowrap;
+}
+
+.section-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.7rem;
+}
+
+.section-actions--stacked {
+  margin-top: 1.3rem;
+}
+
+.section-heading-row {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 2rem;
+}
+
+.section-heading-row > .section-actions {
+  margin-bottom: clamp(2.75rem, 5vw, 4.75rem);
+}
+
+.services-section__top > .section-actions {
+  margin-bottom: 4rem;
+}
+
+@media (max-width: 899px) {
+  /* Side-by-side headings and actions stop fitting well before the buttons themselves do. */
+  .section-heading-row,
+  .services-section__top {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+  }
+
+  .section-heading-row > .section-actions,
+  .services-section__top > .section-actions {
+    margin-bottom: clamp(2.75rem, 5vw, 4.75rem);
+  }
+
+  .section-heading-row .section-heading,
+  .services-section__top .section-heading {
+    margin-bottom: 1.5rem;
+  }
+}
+
+@media (max-width: 620px) {
+  /* Stacked full-width actions read better than two half-width buttons on a phone, and keep the
+     tap targets a consistent size. */
+  .section-actions,
+  .hero__actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .section-actions > .button,
+  .hero__actions > .button {
+    width: 100%;
+  }
+
+  .promotion-card__footer {
+    flex-direction: column;
+    align-items: stretch;
   }
 }
 
