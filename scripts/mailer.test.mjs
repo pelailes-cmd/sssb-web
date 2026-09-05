@@ -66,7 +66,9 @@ function load({
     UrlFetchApp: {
       fetch: (url, options) => {
         fetched.push({ url, options });
-        if (fetchThrows) throw new Error('DNS lookup failed');
+        if (fetchThrows) {
+          throw new Error(typeof fetchThrows === 'string' ? fetchThrows : 'DNS lookup failed');
+        }
         return {
           getResponseCode: () => estimateStatus,
           getContentText: () => estimateBody,
@@ -233,6 +235,35 @@ test('a pricing failure never costs the inquiry', () => {
     unset.sent[0].body,
     /None - not configured \(add ESTIMATE_ENDPOINT and ESTIMATE_SHARED_SECRET\)/,
   );
+});
+
+test('a missing fetch permission is not reported as a network problem', () => {
+  // Fetching an external URL is a permission the project did not need until the estimate was
+  // added, so a deployment authorised before then fails every attempt. Calling that "unreachable"
+  // sends the operator hunting a URL that was right all along.
+  const denied =
+    'Exception: You do not have permission to call UrlFetchApp.fetch. Required permissions: ' +
+    'https://www.googleapis.com/auth/script.external_request';
+
+  const box = load({ fetchThrows: denied });
+  assert.equal(post(box, inquiry()).ok, true, 'the lead must still be delivered');
+  assert.match(box.sent[0].body, /None - not authorised to fetch/);
+  // The email is internal, so it carries the exact reason rather than only the category.
+  assert.match(box.sent[0].body, /script\.external_request/);
+
+  const health = JSON.parse(load({ fetchThrows: denied }).doGet().text);
+  assert.equal(health.estimateProblem, 'not authorised to fetch');
+  // The health check page is public, so the detail stays out of it.
+  assert.equal(JSON.stringify(health).includes('external_request'), false);
+});
+
+test('testEstimate reports the problem by throwing', () => {
+  assert.throws(() => load({ estimateEndpoint: null }).testEstimate(), /not configured/);
+  assert.throws(() => load({ fetchThrows: true }).testEstimate(), /unreachable/);
+
+  const box = load();
+  assert.match(box.testEstimate(), /reachable/);
+  assert.equal(box.fetched.length, 1);
 });
 
 test('the property type is required and decides the tariff', () => {

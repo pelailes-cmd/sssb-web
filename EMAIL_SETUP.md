@@ -167,16 +167,28 @@ open **Executions** in the left sidebar and look at the most recent `doPost` ent
 
 ## If the inquiry arrives but shows no estimated cost
 
-The email says `Estimate shown to the customer: None`, followed by the reason. The same reason is on
-the health check as `estimateProblem`:
+The email says `Estimate shown to the customer: None`, followed by the reason and the underlying
+error. The health check reports the same reason as `estimateProblem`, without the detail, because
+that page is public:
 
-- `not configured (add …)` — the named Script Property is missing. This is the reason to expect if
-  section 3 has not been done yet. Adding the property takes effect immediately; only a change to
-  the script's **code** needs a new deployment version. See section 3c.
+- `not authorised to fetch` — **the most likely reason the first time.** Calling an external URL is
+  a permission this project did not need until the estimate was added, so a script authorised
+  before then cannot do it, however correct the URL and secret are. Fix it the same way as the mail
+  permission: in the script editor choose `testEstimate` from the function list beside **Run** and
+  press Run. Google will ask for the new permission; grant it, then go to **Deploy → Manage
+  deployments → edit → Version: New version**.
+- `not configured (add …)` — the named Script Property is missing. Expect this if section 3 has not
+  been done. Adding a property takes effect immediately; only a change to the script's **code**
+  needs a new deployment version. See section 3c.
 - `refused` — the endpoint answered but would not price the request. Almost always the two copies of
-  the secret differ, or JWT verification is still switched on for the function. The execution log
-  records the exact status.
-- `unreachable` — the URL is wrong or Supabase could not be reached.
+  the secret differ, or JWT verification is still switched on for the function.
+- `unreachable` — the URL in `ESTIMATE_ENDPOINT` is malformed or its host does not resolve. It
+  should read `https://<your-project>.supabase.co/functions/v1/quick-estimate`, with no spaces and
+  nothing after `quick-estimate`.
+
+Running `testEstimate` is the quickest way to tell these apart whatever the cause: it reports the
+exact error in the execution log rather than the category, and prompts for the permission if that is
+what is missing.
 
 Nothing here loses an inquiry. The email is sent either way, and the customer is told their request
 arrived; they simply see no figure.

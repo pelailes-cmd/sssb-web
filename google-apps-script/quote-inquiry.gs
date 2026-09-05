@@ -313,7 +313,15 @@ function requestEstimate(propertyType, monthlyBill) {
       muteHttpExceptions: true,
     });
   } catch (fetchError) {
-    return { error: 'unreachable', detail: String(fetchError) };
+    var reason = String(fetchError);
+    // Fetching an external URL is a permission this project did not need until the estimate was
+    // added, so a deployment authorised before then cannot do it at all. That failure arrives here
+    // looking like any other, and calling it "unreachable" sends the operator hunting a URL that
+    // was right all along. Run `testEstimate` from the editor to grant it.
+    if (/permission|authoriz|authoris|scope/i.test(reason)) {
+      return { error: 'not authorised to fetch', detail: reason };
+    }
+    return { error: 'unreachable', detail: reason };
   }
 
   var status = response.getResponseCode();
@@ -392,6 +400,30 @@ function testMailer() {
   return 'Sent to ' + recipient.address;
 }
 
+/**
+ * Run this from the Apps Script editor to diagnose the estimate link.
+ *
+ * Like `testMailer`, running it here rather than through the website does two useful things. It
+ * prompts for any permission the script has not been granted yet — fetching an external URL is one
+ * this project did not need until the estimate was added, so a project authorised before then will
+ * fail every attempt until it is granted. And it reports the exact error rather than the category
+ * the sales email shows. Select `testEstimate` in the toolbar and press Run, then read the log.
+ */
+function testEstimate() {
+  var endpoint = String(
+    PropertiesService.getScriptProperties().getProperty('ESTIMATE_ENDPOINT') || '',
+  ).trim();
+  logLine('ESTIMATE_ENDPOINT is ' + (endpoint || 'not set'));
+
+  var result = requestEstimate('residential', 10000);
+  if (result.error) {
+    throw new Error(result.error + ' - ' + result.detail);
+  }
+
+  logLine('The estimate service answered: ' + JSON.stringify(result.estimate));
+  return 'The estimate service is reachable.';
+}
+
 function doPost(e) {
   var payload;
   try {
@@ -428,12 +460,11 @@ function doPost(e) {
     logLine('Estimate unavailable (' + priced.error + '): ' + priced.detail);
   }
 
-  var sent = deliver(
-    recipient.address,
-    checked.inquiry,
-    priced.estimate || null,
-    priced.error || null,
-  );
+  // The email is internal, so it carries the exact reason rather than the category the public
+  // health check reports. Reading it there beats digging through the execution log.
+  var problem = priced.error ? priced.error + (priced.detail ? ' - ' + priced.detail : '') : null;
+
+  var sent = deliver(recipient.address, checked.inquiry, priced.estimate || null, problem);
   if (!sent.ok) {
     // The reason is logged for the operator and returned as `detail`, which the website does not
     // display. Losing an inquiry to a message nobody can act on is the failure worth avoiding.
