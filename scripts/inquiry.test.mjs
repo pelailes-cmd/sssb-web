@@ -13,7 +13,12 @@ import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-import { emptyInquiry, roofTypes, validateInquiry } from '../src/lib/quoteInquiry.ts';
+import {
+  emptyInquiry,
+  propertyTypes,
+  roofTypes,
+  validateInquiry,
+} from '../src/lib/quoteInquiry.ts';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -28,6 +33,7 @@ const validInquiry = {
   email: 'juan@example.com',
   phone: '0997-688-4865',
   installationDate: tomorrow(),
+  propertyType: 'residential',
   roofType: 'metal',
   floors: '2',
   address: '12 Rizal Street, Barangay San Jose, Pili',
@@ -39,7 +45,7 @@ test('a complete inquiry passes', () => {
 });
 
 test('every field is required', () => {
-  // An empty form must complain about all eight, not just the first.
+  // An empty form must complain about all nine, not just the first.
   const errors = validateInquiry(emptyInquiry);
   assert.deepEqual(Object.keys(errors).sort(), [
     'address',
@@ -49,6 +55,7 @@ test('every field is required', () => {
     'installationDate',
     'monthlyBill',
     'phone',
+    'propertyType',
     'roofType',
   ]);
 
@@ -82,25 +89,70 @@ test('the roof list and its labels are usable', () => {
   }
 });
 
-test('the inquiry journey never touches pricing', async () => {
+test('the three property types match the tariffs the server holds', () => {
+  // Each of these selects a different electricity rate, so the list has to stay in step with the
+  // columns on quick_estimate_settings and with PROPERTY_LABELS in the mailer.
+  assert.deepEqual(
+    propertyTypes.map((type) => type.value),
+    ['residential', 'commercial', 'industrial'],
+  );
+  for (const type of propertyTypes) {
+    assert.ok(type.label, 'each property type needs a label');
+    assert.deepEqual(validateInquiry({ ...validInquiry, propertyType: type.value }), {});
+  }
+});
+
+test('the browser displays the estimate without knowing how to work one out', async () => {
   const files = [
     'src/lib/quoteInquiry.ts',
     'src/components/quotation/QuoteInquiryDialog.tsx',
     'src/cms/QuoteDialogContext.tsx',
+    'src/components/QuoteButton.tsx',
   ];
   const source = (
     await Promise.all(files.map((file) => readFile(path.join(root, file), 'utf8')))
   ).join('\n');
 
-  // This form gathers details and sends them onward; it must not price anything or reach the
-  // estimate endpoint, which is what keeps the rate card out of a journey that shows no total.
-  for (const term of ['quote_categories', 'quote_settings', 'quotation-estimate', 'lineItems']) {
+  // The figure is now shown, so `estimatedTotal` legitimately appears. What must not appear is any
+  // of the numbers it was derived from: with the rate card in the bundle, the whole arrangement
+  // would be pointless.
+  for (const value of ['41000', '90000', '13.59', '12.44', '10.98', '620']) {
+    assert.doesNotMatch(
+      source,
+      new RegExp(value),
+      `the bundle must not carry the ${value} setting`,
+    );
+  }
+
+  // Nor may it reach the pricing tables or endpoints directly. Everything arrives through the
+  // mailer's reply.
+  for (const term of [
+    'quote_categories',
+    'quote_settings',
+    'quick_estimate_settings',
+    'quotation-estimate',
+    'quick-estimate',
+    'lineItems',
+  ]) {
     assert.doesNotMatch(source, new RegExp(term), `the inquiry must not reference ${term}`);
   }
-  assert.doesNotMatch(source, /estimatedTotal/);
 
   // The recipient mailbox belongs in the Apps Script, never in the published bundle.
   assert.doesNotMatch(source, /@gmail\.com|@smartsave/i);
+});
+
+test('a missing estimate is not treated as a failed submission', async () => {
+  const lib = await readFile(path.join(root, 'src/lib/quoteInquiry.ts'), 'utf8');
+  const dialog = await readFile(
+    path.join(root, 'src/components/quotation/QuoteInquiryDialog.tsx'),
+    'utf8',
+  );
+
+  // The mailer answers without a figure when the pricing service is unavailable. The inquiry has
+  // still arrived, so the success screen has to stand on its own.
+  assert.match(lib, /return parseEstimate\(result\.estimate\)/);
+  assert.match(dialog, /\{estimate \?/, 'the estimate panel should be conditional');
+  assert.match(dialog, /Submission success/);
 });
 
 test('the mailer validates everything again on its own side', async () => {
@@ -113,6 +165,13 @@ test('the mailer validates everything again on its own side', async () => {
   }
   assert.match(script, /RECIPIENT_EMAIL/);
   assert.match(script, /withinRateLimit/);
+  assert.match(script, /propertyType/, 'the property type decides the tariff and must be checked');
+
+  // The rates live in Supabase, not in the script. If a figure ever appears here it has stopped
+  // being something the administrator can change.
+  for (const value of ['41000', '90000', '13.59']) {
+    assert.doesNotMatch(script, new RegExp(value), `the mailer must not hold the ${value} setting`);
+  }
   // Honeypot and timing checks answer as though they succeeded, so a bot learns nothing.
   assert.match(script, /payload\.website/);
   assert.match(script, /MIN_ELAPSED_MS/);
@@ -132,8 +191,10 @@ test('the estimator is reachable but is no longer a page section', async () => {
   assert.match(footer, /Get a free quote now!/);
 
   const header = await readFile(path.join(root, 'src/components/Header.tsx'), 'utf8');
-  assert.match(header, /Get a Quote/);
+  assert.match(header, /Get an Estimate/);
   assert.match(header, /header-quote/);
+  // The label is hidden on the narrowest phones, so the button needs a name of its own.
+  assert.match(header, /aria-label="Get an Estimate"/);
 });
 
 test('every section the client asked for offers the quote button', async () => {
@@ -154,6 +215,6 @@ test('every section the client asked for offers the quote button', async () => {
 
   // One component behind all of them, so the wording and the action cannot drift apart.
   const button = await readFile(path.join(root, 'src/components/QuoteButton.tsx'), 'utf8');
-  assert.match(button, /Get a Quote/);
+  assert.match(button, /Get an Estimate/);
   assert.match(button, /openInquiry/);
 });

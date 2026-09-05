@@ -1,11 +1,20 @@
-# Quote inquiry email setup
+# Estimate request setup
 
-The **Get a Quote** button in the header opens a short form — name, email, phone, preferred
-installation date, roof type, floors, address and average monthly bill. Nothing is priced. The
-details are emailed to the sales inbox and the visitor is told their inquiry arrived.
+The **Get an Estimate** button in the header, and the matching button in every main section, opens a
+short form — name, email, phone, preferred installation date, property type, roof type, floors,
+address and average monthly bill.
 
-Delivery uses a Google Apps Script web app, so there is no mail provider account to open and no
-database table involved. Any Google account that can receive the mail can host it.
+Two things happen when it is submitted. The details are emailed to the sales inbox, and the visitor
+is shown an estimated cost worked out from their bill. Both are handled on the server: the browser
+never sees a rate, a price per kW or the battery cost, and never works a figure out for itself.
+
+- **Delivery** uses a Google Apps Script web app, so there is no mail provider account to open. Any
+  Google account that can receive the mail can host it.
+- **Pricing** uses the `quick-estimate` Supabase Edge Function, reading rates the administrator
+  edits under **Pricing → Estimate rates** in the admin dashboard.
+
+Sections 1, 2, 4 and 5 set up the email. Section 3 sets up the estimate; skip it and the form still
+works and the inquiry still arrives, but the visitor is shown no figure.
 
 ## 1. Create the script
 
@@ -35,7 +44,48 @@ JavaScript, so it cannot be scraped from the page.
 
 If the property is missing, the script falls back to the Google account that owns it.
 
-## 3. Deploy it as a web app
+## 3. Connect the estimate
+
+The figures are computed in Supabase, not in the script and not in the browser. This section wires
+the two together.
+
+### 3a. Create the settings table
+
+In the Supabase dashboard open **SQL Editor**, paste the whole of
+`supabase/migrations/202609060001_quick_estimate_settings.sql` and run it. It creates one row
+holding the rates, owner-only, readable by nothing that is not signed in as the owner.
+
+The starting values are the ones the business supplied: ₱13.59, ₱12.44 and ₱10.98 per kWh for
+residential, commercial and industrial, 4 peak sun hours, 620 W panels, ₱41,000 per kW and a ₱90,000
+battery. Change them any time under **Pricing → Estimate rates** in the admin dashboard — the change
+applies to the next submission, with no redeployment.
+
+### 3b. Deploy the pricing function
+
+1. In the Supabase dashboard open **Edge Functions** and create a function named `quick-estimate`.
+2. Paste the whole of `supabase/functions/quick-estimate/index.ts` as its `index.ts`.
+3. **Turn JWT verification off.** The caller is the Apps Script mailer, which holds no Supabase
+   session. The shared secret below is what protects the endpoint instead.
+4. Deploy it.
+
+### 3c. Set the shared secret
+
+Choose a random string of **at least 16 characters** — anything long and unguessable will do. The
+function refuses to run with a shorter one rather than leaving pricing open.
+
+1. In Supabase, under **Edge Functions → Secrets**, add `ESTIMATE_SHARED_SECRET` with that value.
+2. Back in the Apps Script **Project Settings → Script Properties**, add two more properties:
+   - `ESTIMATE_SHARED_SECRET` — the same value, character for character.
+   - `ESTIMATE_ENDPOINT` — the function URL, which looks like
+     `https://<your-project>.supabase.co/functions/v1/quick-estimate`.
+
+This secret is why the pricing endpoint cannot be called from a browser or by anyone who finds the
+URL. Because the estimate rises in a straight line with the bill, an endpoint anyone could call
+would give up the price per kW and the battery cost after two requests. Going through the mailer
+puts the hidden field, the timing check and the three-per-hour limit in front of it, and every
+attempt lands in the sales inbox.
+
+## 4. Deploy it as a web app
 
 1. Choose **Deploy → New deployment**.
 2. Set the type to **Web app**.
@@ -53,9 +103,10 @@ If the property is missing, the script falls back to the Google account that own
    **Deploy → Manage deployments**, next to the active Web app deployment.
 
 You can confirm it is live by opening that URL in a browser. It prints a small status object
-reporting whether a recipient is configured and whether this deployment may send mail.
+reporting whether a recipient is configured, whether this deployment may send mail, and whether the
+pricing service answered.
 
-## 4. Point the website at it
+## 5. Point the website at it
 
 **For the live site**, add a repository variable in GitHub:
 
@@ -72,11 +123,12 @@ VITE_QUOTE_INQUIRY_ENDPOINT=https://script.google.com/macros/s/AKfy…/exec
 Until this is set, the form still opens but the submit button is disabled and the visitor is asked
 to phone instead, so nobody fills the form in and loses their answers.
 
-## 5. Test it
+## 6. Test it
 
-Open the site, choose **Get a Quote**, fill every field and submit. You should see
-_"Submission success, we'll get back to you right away."_ and the email should arrive within a few
-seconds. Replying to that email goes straight to the customer, because their address is set as the
+Open the site, choose **Get an Estimate**, fill every field and submit. You should see
+_"Submission success, we'll get back to you right away."_ followed by the estimated cost, the system
+size and the number of panels. The email should arrive within a few seconds carrying the same
+figures. Replying to that email goes straight to the customer, because their address is set as the
 reply-to.
 
 ## If an inquiry says "The inquiry could not be emailed"
@@ -88,7 +140,12 @@ quick way to tell them apart.
 **Open the web app URL in a browser.** The health check reports which:
 
 ```json
-{ "recipientConfigured": true, "mailAuthorised": true, "quotaRemaining": 97 }
+{
+  "recipientConfigured": true,
+  "mailAuthorised": true,
+  "quotaRemaining": 97,
+  "estimateConfigured": true
+}
 ```
 
 - `"mailAuthorised": false` — the deployment has not been granted permission to send mail. This is
@@ -108,10 +165,26 @@ version** so the live web app picks up the permission, and try the form again.
 If you would rather read the failure directly, every send error is written to the execution log:
 open **Executions** in the left sidebar and look at the most recent `doPost` entry.
 
+## If the inquiry arrives but shows no estimated cost
+
+The email says `Estimate shown to the customer: None`, followed by the reason. The same reason is on
+the health check as `estimateProblem`:
+
+- `not configured` — `ESTIMATE_ENDPOINT` or `ESTIMATE_SHARED_SECRET` is missing from Script
+  Properties. See section 3c.
+- `refused` — the endpoint answered but would not price the request. Almost always the two copies of
+  the secret differ, or JWT verification is still switched on for the function. The execution log
+  records the exact status.
+- `unreachable` — the URL is wrong or Supabase could not be reached.
+
+Nothing here loses an inquiry. The email is sent either way, and the customer is told their request
+arrived; they simply see no figure.
+
 ## What to know about this approach
 
 **The endpoint address is public.** It is compiled into the website, as any address a browser calls
-must be. The recipient mailbox is not public, and the script defends itself:
+must be. The recipient mailbox is not public, the rates are not public, and the script defends
+itself:
 
 - every field is validated again on Google's side, because the browser's checks can be bypassed
 - a hidden field that only automated form-fillers complete causes the submission to be discarded
@@ -119,11 +192,15 @@ must be. The recipient mailbox is not public, and the script defends itself:
   that post immediately without penalising somebody using browser autofill
 - one email address may send three inquiries per hour
 
+**What the estimate does and does not give away.** The visitor is shown a total, a system size and a
+panel count — never a rate, a per-kW price or the battery cost, and never the arithmetic. What
+cannot be prevented is inference: because the total rises in a straight line with the bill, somebody
+who submits two different bills and compares the answers can work out the price per kW and the
+battery cost. The rate limit above is what makes that costly rather than free, and every attempt
+arrives in the sales inbox as a named inquiry.
+
 **Gmail has a daily send limit** — 100 messages a day on a consumer account, 1,500 on Workspace. The
-protections above are there to stop that allowance being wasted. If the volume of genuine inquiries
-ever approaches the limit, or if the endpoint attracts abuse, the same form can be pointed at a
-Supabase Edge Function instead, which would keep the URL private and add per-address rate limiting;
-the browser code would not need to change beyond the endpoint.
+protections above are there to stop that allowance being wasted.
 
 **Changing the script later:** after editing the code you must choose **Deploy → Manage deployments
 → edit → Version: New version** for the change to take effect. Saving alone does not update the

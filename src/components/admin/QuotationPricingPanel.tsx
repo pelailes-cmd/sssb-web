@@ -2,8 +2,10 @@ import { Calculator, LoaderCircle, Pencil, Plus, RefreshCw, Save, Trash2, X } fr
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import {
   deleteQuoteCategory,
+  fetchQuickEstimateSettings,
   fetchQuoteCategories,
   fetchQuoteSettings,
+  saveQuickEstimateSettings,
   saveQuoteCategory,
   saveQuoteSettings,
 } from '../../cms/quotationAdminRepository';
@@ -13,6 +15,7 @@ import {
   quoteCategoryConditionLabels,
   quoteCategoryConditions,
   quoteCategorySectorLabels,
+  type QuickEstimateSettings,
   type QuoteCategory,
   type QuoteCategoryBasis,
   type QuoteCategoryCondition,
@@ -128,6 +131,47 @@ function fromSettingsDraft(draft: SettingsDraft, base: QuoteSettings): QuoteSett
   };
 }
 
+type QuickEstimateDraft = Record<keyof QuickEstimateSettings, string>;
+
+const toQuickDraft = (settings: QuickEstimateSettings): QuickEstimateDraft => ({
+  residentialRatePerKwh: numberText(settings.residentialRatePerKwh),
+  commercialRatePerKwh: numberText(settings.commercialRatePerKwh),
+  industrialRatePerKwh: numberText(settings.industrialRatePerKwh),
+  peakSunHours: numberText(settings.peakSunHours),
+  daysPerMonth: numberText(settings.daysPerMonth),
+  panelWatts: numberText(settings.panelWatts),
+  pricePerKw: numberText(settings.pricePerKw),
+  batteryCost: numberText(settings.batteryCost),
+  roundingStep: numberText(settings.roundingStep),
+});
+
+const fromQuickDraft = (draft: QuickEstimateDraft): QuickEstimateSettings => ({
+  residentialRatePerKwh: toNumber(draft.residentialRatePerKwh, 13.59),
+  commercialRatePerKwh: toNumber(draft.commercialRatePerKwh, 12.44),
+  industrialRatePerKwh: toNumber(draft.industrialRatePerKwh, 10.98),
+  peakSunHours: toNumber(draft.peakSunHours, 4),
+  daysPerMonth: toNumber(draft.daysPerMonth, 30),
+  panelWatts: toNumber(draft.panelWatts, 620),
+  pricePerKw: toNumber(draft.pricePerKw, 41000),
+  batteryCost: toNumber(draft.batteryCost, 90000),
+  roundingStep: Math.round(toNumber(draft.roundingStep, 1000)),
+});
+
+/**
+ * Every one of these divides or multiplies, so a zero would either fail the CHECK constraint or
+ * price the estimate at nothing. Named in plain language rather than left to PostgREST.
+ */
+const quickEstimateRequirements: Array<[keyof QuickEstimateSettings, string]> = [
+  ['residentialRatePerKwh', 'residential electricity rate'],
+  ['commercialRatePerKwh', 'commercial electricity rate'],
+  ['industrialRatePerKwh', 'industrial electricity rate'],
+  ['peakSunHours', 'peak sun hours'],
+  ['daysPerMonth', 'days per month'],
+  ['panelWatts', 'solar panel rating'],
+  ['pricePerKw', 'price per kW'],
+  ['roundingStep', 'rounding step'],
+];
+
 type CategoryDraft = {
   id: string;
   key: string;
@@ -193,6 +237,8 @@ function Field({
 export function QuotationPricingPanel() {
   const [settings, setSettings] = useState<QuoteSettings | null>(null);
   const [draft, setDraft] = useState<SettingsDraft | null>(null);
+  const [quickDraft, setQuickDraft] = useState<QuickEstimateDraft | null>(null);
+  const [quickProblem, setQuickProblem] = useState<string | null>(null);
   const [categories, setCategories] = useState<QuoteCategory[]>([]);
   const [categoryDraft, setCategoryDraft] = useState<CategoryDraft | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -204,13 +250,31 @@ export function QuotationPricingPanel() {
     setIsLoading(true);
     setError(null);
     try {
-      const [loadedSettings, loadedCategories] = await Promise.all([
+      // The estimate rates arrive with their own migration, so this one is settled separately: a
+      // project that has not run it yet must still be able to manage everything else on this page.
+      const [loadedSettings, loadedCategories, loadedQuick] = await Promise.all([
         fetchQuoteSettings(),
         fetchQuoteCategories(),
+        fetchQuickEstimateSettings().then(
+          (value) => ({ value }),
+          (reason) => ({ reason }),
+        ),
       ]);
       setSettings(loadedSettings);
       setDraft(toSettingsDraft(loadedSettings));
       setCategories(loadedCategories);
+
+      if ('value' in loadedQuick) {
+        setQuickDraft(toQuickDraft(loadedQuick.value));
+        setQuickProblem(null);
+      } else {
+        setQuickDraft(null);
+        setQuickProblem(
+          loadedQuick.reason instanceof Error
+            ? loadedQuick.reason.message
+            : 'The estimate rates could not be loaded.',
+        );
+      }
     } catch (loadError) {
       setError(
         loadError instanceof Error
@@ -231,8 +295,42 @@ export function QuotationPricingPanel() {
     setDraft((current) => (current ? { ...current, [field]: value } : current));
   };
 
+  const updateQuickDraft = (field: keyof QuickEstimateDraft, value: string) => {
+    setQuickDraft((current) => (current ? { ...current, [field]: value } : current));
+  };
+
   const updateCategory = <K extends keyof CategoryDraft>(field: K, value: CategoryDraft[K]) => {
     setCategoryDraft((current) => (current ? { ...current, [field]: value } : current));
+  };
+
+  const submitQuickSettings = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!quickDraft) return;
+
+    const next = fromQuickDraft(quickDraft);
+    const missing = quickEstimateRequirements.find(([key]) => !(next[key] > 0));
+    if (missing) {
+      setError(`Enter a value above zero for the ${missing[1]}.`);
+      return;
+    }
+    if (next.batteryCost < 0) {
+      setError('The battery cost cannot be negative. Use 0 to leave it out of the estimate.');
+      return;
+    }
+
+    setIsSaving(true);
+    setError(null);
+    setNotice(null);
+    try {
+      setQuickDraft(toQuickDraft(await saveQuickEstimateSettings(next)));
+      setNotice('Estimate rates updated successfully.');
+    } catch (saveError) {
+      setError(
+        saveError instanceof Error ? saveError.message : 'The estimate rates were not saved.',
+      );
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const submitSettings = async (event: FormEvent<HTMLFormElement>) => {
@@ -367,6 +465,148 @@ export function QuotationPricingPanel() {
         </div>
       ) : (
         <>
+          {quickDraft ? null : (
+            <div className="admin-notice admin-notice--error" role="alert">
+              <strong>Estimate rates unavailable</strong>
+              <p>
+                {quickProblem} Run
+                <code> supabase/migrations/202609060001_quick_estimate_settings.sql</code> in the
+                Supabase SQL editor, then refresh. Until then the estimate form still collects
+                inquiries, but visitors are shown no figure.
+              </p>
+            </div>
+          )}
+
+          {quickDraft ? (
+            <form className="admin-pricing-form" onSubmit={submitQuickSettings} noValidate>
+              <div className="admin-pricing-form__head">
+                <h4>Estimate rates</h4>
+                <button type="button" disabled={isLoading} onClick={() => void load()}>
+                  <RefreshCw className={isLoading ? 'is-spinning' : ''} aria-hidden="true" />
+                  Refresh
+                </button>
+              </div>
+              <p className="admin-pricing-form__lede">
+                Behind the <strong>Get an Estimate</strong> form: these turn a visitor&rsquo;s
+                average monthly bill into the single figure they are shown. A change applies to the
+                next submission — the website does not need rebuilding.
+              </p>
+
+              <h5>Electricity rate per kWh</h5>
+              <div className="admin-editor__fields">
+                <Field label="Residential">
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    value={quickDraft.residentialRatePerKwh}
+                    onChange={(event) =>
+                      updateQuickDraft('residentialRatePerKwh', event.target.value)
+                    }
+                  />
+                </Field>
+                <Field label="Commercial">
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    value={quickDraft.commercialRatePerKwh}
+                    onChange={(event) =>
+                      updateQuickDraft('commercialRatePerKwh', event.target.value)
+                    }
+                  />
+                </Field>
+                <Field label="Industrial">
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    value={quickDraft.industrialRatePerKwh}
+                    onChange={(event) =>
+                      updateQuickDraft('industrialRatePerKwh', event.target.value)
+                    }
+                  />
+                </Field>
+              </div>
+
+              <h5>System sizing</h5>
+              <div className="admin-editor__fields">
+                <Field label="Peak sun hours per day">
+                  <input
+                    type="number"
+                    step="0.1"
+                    min="0.1"
+                    value={quickDraft.peakSunHours}
+                    onChange={(event) => updateQuickDraft('peakSunHours', event.target.value)}
+                  />
+                </Field>
+                <Field label="Days per month" hint="Turns a monthly bill into daily usage.">
+                  <input
+                    type="number"
+                    step="1"
+                    min="1"
+                    value={quickDraft.daysPerMonth}
+                    onChange={(event) => updateQuickDraft('daysPerMonth', event.target.value)}
+                  />
+                </Field>
+                <Field
+                  label="Solar panel rating (watts)"
+                  hint="Sets the panel count that is shown."
+                >
+                  <input
+                    type="number"
+                    step="5"
+                    min="1"
+                    value={quickDraft.panelWatts}
+                    onChange={(event) => updateQuickDraft('panelWatts', event.target.value)}
+                  />
+                </Field>
+              </div>
+
+              <h5>Pricing</h5>
+              <div className="admin-editor__fields">
+                <Field label="Price per kW" hint="Multiplied by the system size the bill implies.">
+                  <input
+                    type="number"
+                    step="500"
+                    min="1"
+                    value={quickDraft.pricePerKw}
+                    onChange={(event) => updateQuickDraft('pricePerKw', event.target.value)}
+                  />
+                </Field>
+                <Field label="Battery cost" hint="Added to every estimate. Use 0 to leave it out.">
+                  <input
+                    type="number"
+                    step="1000"
+                    min="0"
+                    value={quickDraft.batteryCost}
+                    onChange={(event) => updateQuickDraft('batteryCost', event.target.value)}
+                  />
+                </Field>
+                <Field label="Rounding step" hint="The total is rounded to this multiple.">
+                  <input
+                    type="number"
+                    step="100"
+                    min="1"
+                    value={quickDraft.roundingStep}
+                    onChange={(event) => updateQuickDraft('roundingStep', event.target.value)}
+                  />
+                </Field>
+              </div>
+
+              <div className="admin-editor__actions">
+                <button className="button button--primary" type="submit" disabled={isSaving}>
+                  {isSaving ? (
+                    <LoaderCircle className="is-spinning" aria-hidden="true" />
+                  ) : (
+                    <Save aria-hidden="true" />
+                  )}
+                  {isSaving ? 'Saving…' : 'Save estimate rates'}
+                </button>
+              </div>
+            </form>
+          ) : null}
+
           <form className="admin-pricing-form" onSubmit={submitSettings} noValidate>
             <div className="admin-pricing-form__head">
               <h4>Global settings</h4>

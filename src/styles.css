@@ -6149,6 +6149,13 @@ dialog.admin-dashboard[open] {
   cursor: pointer;
 }
 
+.admin-pricing-form__lede {
+  margin: 0;
+  max-width: 68ch;
+  color: var(--color-muted);
+  font-size: 0.84rem;
+}
+
 .admin-pricing-form h5,
 .admin-pricing-categories h5 {
   margin: 0.4rem 0 0;
@@ -6633,7 +6640,7 @@ dialog.admin-dashboard[open] {
   }
 }
 
-/* Get a Quote — header call to action */
+/* Get an Estimate — header call to action */
 .header-quote {
   display: inline-flex;
   min-height: 2.8rem;
@@ -6790,6 +6797,88 @@ dialog.quote-dialog[open] {
   margin-top: 0.8rem;
 }
 
+/* The estimate, when the server returned one. It is optional, so the success screen has to read
+   properly with the block absent as well as present. */
+.quote-estimate {
+  display: grid;
+  justify-items: center;
+  gap: 0.55rem;
+  width: 100%;
+  margin: 0.3rem 0 0.1rem;
+  padding: 1.15rem 1.25rem 1.25rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-background);
+}
+
+/* Overrides the muted, narrow paragraph the surrounding success screen applies to every <p>. */
+.quote-dialog__success .quote-estimate__label {
+  max-width: none;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.quote-dialog__success .quote-estimate__total {
+  max-width: none;
+  color: var(--color-ink);
+  font-size: clamp(1.7rem, 6vw, 2.35rem);
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+}
+
+.quote-estimate__facts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+  width: 100%;
+  margin: 0.35rem 0 0;
+  padding-top: 0.85rem;
+  border-top: 1px solid var(--color-border);
+}
+
+.quote-estimate__facts dt {
+  color: var(--color-muted);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.quote-estimate__facts dd {
+  margin: 0.2rem 0 0;
+  color: var(--color-text);
+  font-size: 0.96rem;
+  font-weight: 700;
+}
+
+.quote-dialog__success .quote-estimate__note {
+  max-width: 46ch;
+  font-size: 0.76rem;
+}
+
+@media (max-width: 439px) {
+  /* Three columns stop fitting here, and two would leave the third fact orphaned on a row of its
+     own. Reading them as label-and-value rows avoids both. */
+  .quote-estimate__facts {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.5rem;
+  }
+
+  .quote-estimate__facts > div {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+
+  .quote-estimate__facts dd {
+    margin: 0;
+  }
+}
+
 /* The estimator keeps its own layout; inside a dialog it only needs the outer frame removed. */
 .quote-dialog__body .quotation-builder {
   margin-top: 0;
@@ -6818,7 +6907,7 @@ dialog.quote-dialog[open] {
   }
 }
 
-/* Measured: the labelled button needs 133px, and the room left beside the brand is 130px at 360px
+/* Measured: the labelled button needs 157px, and the room left beside the brand is 130px at 360px
    but 160px at 390px. So the label survives on most phones and is dropped only on the narrowest,
    where keeping it would squeeze the menu button below its touch target. */
 @media (max-width: 369px) {
@@ -6828,6 +6917,16 @@ dialog.quote-dialog[open] {
 
   .header-quote {
     padding-inline: 0.85rem;
+  }
+}
+
+/* Just above that cut the label fits, but with only a few pixels to spare on a 390px phone.
+   Trimming the pill buys back about ten, so a slightly wider font rendering cannot push the header
+   row into a horizontal scroll. */
+@media (min-width: 370px) and (max-width: 429px) {
+  .header-quote {
+    gap: 0.4rem;
+    padding-inline: 0.72rem;
   }
 }
 

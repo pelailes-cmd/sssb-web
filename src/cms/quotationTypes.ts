@@ -192,6 +192,24 @@ export type QuoteSettings = {
   disclaimer: string;
 };
 
+/**
+ * Rates behind the figure shown after the short estimate form is submitted.
+ *
+ * Separate from QuoteSettings, which drives the detailed quotation builder from an itemised rate
+ * card. This one turns a single average monthly bill into one number.
+ */
+export type QuickEstimateSettings = {
+  residentialRatePerKwh: number;
+  commercialRatePerKwh: number;
+  industrialRatePerKwh: number;
+  peakSunHours: number;
+  daysPerMonth: number;
+  panelWatts: number;
+  pricePerKw: number;
+  batteryCost: number;
+  roundingStep: number;
+};
+
 export type QuotationRecord = {
   id: string;
   quotationNumber: string;

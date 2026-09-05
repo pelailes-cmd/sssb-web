@@ -4,12 +4,15 @@ import { useQuoteDialog } from '../../cms/QuoteDialogContext';
 import { business } from '../../data/siteData';
 import {
   emptyInquiry,
+  propertyTypes,
   roofTypes,
   submitInquiry,
   todayIsoDate,
   validateInquiry,
   type InquiryErrors,
+  type InquiryEstimate,
   type InquiryValues,
+  type PropertyType,
   type RoofType,
 } from '../../lib/quoteInquiry';
 
@@ -17,13 +20,18 @@ import {
 const inquiryEndpoint = import.meta.env.VITE_QUOTE_INQUIRY_ENDPOINT?.trim() ?? '';
 const isConfigured = Boolean(inquiryEndpoint);
 
+const amount = (value: number) => `₱${Math.round(value).toLocaleString('en-PH')}`;
+
 /**
- * Short quote inquiry, opened from the header.
+ * Short estimate request, opened from the header and from every main section.
  *
- * It collects only what the sales team needs to call back with a figure — the average monthly
- * bill does most of the work — and sends it to the sales inbox. Nothing is priced here and no
- * estimate is shown; the visitor is told their inquiry arrived and the conversation continues off
- * the website.
+ * It collects only what is needed to size a system — the average monthly bill and the property
+ * type do most of the work — sends it to the sales inbox, and shows the figure the server worked
+ * out from it.
+ *
+ * Nothing is priced in this file. The tariffs, the price per kW, the battery cost and the panel
+ * rating are the administrator's settings; they are read and applied on the server, which returns
+ * only the finished figures displayed below.
  */
 export function QuoteInquiryDialog() {
   const dialogRef = useRef<HTMLDialogElement>(null);
@@ -38,6 +46,7 @@ export function QuoteInquiryDialog() {
   const [isSending, setIsSending] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [isSent, setIsSent] = useState(false);
+  const [estimate, setEstimate] = useState<InquiryEstimate | null>(null);
 
   const isOpen = openDialog === 'inquiry';
 
@@ -63,6 +72,7 @@ export function QuoteInquiryDialog() {
       setHoneypot('');
       setSubmitError(null);
       setIsSent(false);
+      setEstimate(null);
     }, 200);
   };
 
@@ -95,10 +105,14 @@ export function QuoteInquiryDialog() {
 
     setIsSending(true);
     try {
-      await submitInquiry(inquiryEndpoint, values, {
-        honeypot,
-        elapsedMs: Date.now() - openedAt.current,
-      });
+      // The figure comes back with the confirmation, so what is shown here and what reaches the
+      // sales inbox are the same number, worked out once, on the server.
+      setEstimate(
+        await submitInquiry(inquiryEndpoint, values, {
+          honeypot,
+          elapsedMs: Date.now() - openedAt.current,
+        }),
+      );
       setIsSent(true);
     } catch (error) {
       setSubmitError(
@@ -124,13 +138,13 @@ export function QuoteInquiryDialog() {
     >
       <div className="quote-dialog__head">
         <div>
-          <p className="eyebrow">Get a Quote</p>
+          <p className="eyebrow">Get an Estimate</p>
           <h2 id={`${fieldId}-title`}>Tell us about your property</h2>
         </div>
         <button
           className="icon-button"
           type="button"
-          aria-label="Close the quote request"
+          aria-label="Close the estimate request"
           onClick={dismiss}
         >
           <X aria-hidden="true" />
@@ -141,6 +155,34 @@ export function QuoteInquiryDialog() {
         <div className="quote-dialog__success" role="status">
           <CheckCircle2 aria-hidden="true" />
           <h3>Submission success, we&rsquo;ll get back to you right away.</h3>
+          {/* Shown only when the server returned a figure. A submission that arrived without one
+              still succeeded, and saying so plainly beats an empty panel or an apology. */}
+          {estimate ? (
+            <div className="quote-estimate">
+              <p className="quote-estimate__label">
+                Estimated cost for a {estimate.propertyTypeLabel.toLowerCase()} system
+              </p>
+              <p className="quote-estimate__total">{amount(estimate.estimatedTotal)}</p>
+              <dl className="quote-estimate__facts">
+                <div>
+                  <dt>System size</dt>
+                  <dd>{estimate.systemSizeKw} kW</dd>
+                </div>
+                <div>
+                  <dt>Solar panels</dt>
+                  <dd>{estimate.panelCount}</dd>
+                </div>
+                <div>
+                  <dt>Monthly usage</dt>
+                  <dd>{estimate.monthlyKwh.toLocaleString('en-PH')} kWh</dd>
+                </div>
+              </dl>
+              <p className="quote-estimate__note">
+                Indicative only. It is sized from the bill you gave us and includes battery storage;
+                the final figure follows a site assessment.
+              </p>
+            </div>
+          ) : null}
           <p>
             Our team will review your details and contact you shortly. For anything urgent, call{' '}
             <a href={business.phoneHref}>{business.phoneDisplay}</a>.
@@ -152,8 +194,8 @@ export function QuoteInquiryDialog() {
       ) : (
         <form className="quote-dialog__form" onSubmit={submit} noValidate>
           <p className="quote-dialog__lede">
-            Your average monthly bill tells us most of what we need. Fill in the details below and
-            we will come back to you with a tailored figure.
+            Your average monthly bill and property type tell us most of what we need. Fill in the
+            details below and we will show you an estimate straight away.
           </p>
 
           <div className="form-grid">
@@ -221,6 +263,34 @@ export function QuoteInquiryDialog() {
                 onChange={(event) => update('installationDate', event.target.value)}
               />
               {fieldError('installationDate')}
+            </label>
+
+            <label className="field">
+              <span>
+                Property type <b aria-hidden="true">*</b>
+              </span>
+              <select
+                name="propertyType"
+                value={values.propertyType}
+                aria-invalid={errors.propertyType ? true : undefined}
+                aria-describedby={
+                  errors.propertyType
+                    ? `${errorId('propertyType')} ${fieldId}-property-hint`
+                    : `${fieldId}-property-hint`
+                }
+                onChange={(event) => update('propertyType', event.target.value as PropertyType)}
+              >
+                <option value="">Select a property type</option>
+                {propertyTypes.map((type) => (
+                  <option key={type.value} value={type.value}>
+                    {type.label}
+                  </option>
+                ))}
+              </select>
+              <small id={`${fieldId}-property-hint`}>
+                This sets the electricity rate we work from.
+              </small>
+              {fieldError('propertyType')}
             </label>
 
             <label className="field">
@@ -348,7 +418,7 @@ export function QuoteInquiryDialog() {
               ) : (
                 <Send aria-hidden="true" size={18} />
               )}
-              {isSending ? 'Sending…' : 'Get a Quote'}
+              {isSending ? 'Sending…' : 'Get an Estimate'}
             </button>
           </div>
         </form>
