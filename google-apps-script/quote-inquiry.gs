@@ -7,6 +7,10 @@
  * The recipient address lives in Script Properties rather than in this file, so it is never
  * published in the website bundle. Every field is validated again here: the browser's checks are
  * for the visitor's benefit, not a guarantee, because the endpoint can be called directly.
+ *
+ * It also fetches the estimate the customer is shown. The company's rates are not held here
+ * either: this asks the `quick-estimate` Edge Function, which reads them from the administrator's
+ * settings and answers with finished figures. See `requestEstimate` below.
  */
 
 /** Maximum characters accepted for any single field. */
@@ -26,6 +30,13 @@ var ROOF_LABELS = {
   tile: 'Clay or concrete tile',
   shingle: 'Asphalt shingle',
   other: 'Other',
+};
+
+/** Decides which electricity tariff the estimate is worked out from. */
+var PROPERTY_LABELS = {
+  residential: 'Residential',
+  commercial: 'Commercial',
+  industrial: 'Industrial',
 };
 
 /**
@@ -65,6 +76,12 @@ function doGet() {
     mailAuthorised = false;
   }
 
+  // A live probe against the pricing service with a token bill, so a missing property or a
+  // mistyped secret shows up here rather than as a silently figure-less inquiry. Only whether it
+  // worked is reported: this page is public, so no amount and no endpoint appear in the answer.
+  var probe = requestEstimate('residential', 10000);
+  if (probe.error) logLine('Estimate probe failed (' + probe.error + '): ' + probe.detail);
+
   return json({
     ok: true,
     service: 'quote-inquiry',
@@ -72,6 +89,8 @@ function doGet() {
     recipientProblem: recipient.error || null,
     mailAuthorised: mailAuthorised,
     quotaRemaining: quotaRemaining,
+    estimateConfigured: !probe.error,
+    estimateProblem: probe.error || null,
   });
 }
 
@@ -90,6 +109,7 @@ function validate(payload) {
   var email = text(payload.email);
   var phone = text(payload.phone);
   var installationDate = text(payload.installationDate);
+  var propertyType = text(payload.propertyType);
   var roofType = text(payload.roofType);
   var address = text(payload.address);
   var floors = positiveNumber(payload.floors);
@@ -101,6 +121,7 @@ function validate(payload) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(installationDate)) {
     return { error: 'A preferred installation date is required.' };
   }
+  if (!PROPERTY_LABELS[propertyType]) return { error: 'A valid property type is required.' };
   if (!ROOF_LABELS[roofType]) return { error: 'A valid roof type is required.' };
   if (floors === null || floors > 60) return { error: 'A number of floors is required.' };
   if (address.length < 5) return { error: 'An installation address is required.' };
@@ -112,6 +133,9 @@ function validate(payload) {
       email: email,
       phone: phone,
       installationDate: installationDate,
+      // The key drives the estimate; the label is what the sales team reads.
+      propertyType: propertyType,
+      propertyTypeLabel: PROPERTY_LABELS[propertyType],
       roofType: ROOF_LABELS[roofType],
       floors: String(Math.round(floors)),
       address: address,
@@ -137,26 +161,20 @@ function escapeHtml(value) {
     .replace(/"/g, '&quot;');
 }
 
-function buildEmail(inquiry) {
-  var peso = '₱' + Number(inquiry.monthlyBill).toLocaleString('en-PH');
-  var rows = [
-    ['Full name', inquiry.fullName],
-    ['Email', inquiry.email],
-    ['Phone', inquiry.phone],
-    ['Preferred installation date', inquiry.installationDate],
-    ['Roof type', inquiry.roofType],
-    ['Number of floors', inquiry.floors],
-    ['Address', inquiry.address],
-    ['Average monthly bill', peso],
-  ];
+function peso(amount) {
+  return '₱' + Number(amount).toLocaleString('en-PH');
+}
 
-  var plain = rows
+function plainTable(rows) {
+  return rows
     .map(function (row) {
       return row[0] + ': ' + row[1];
     })
     .join('\n');
+}
 
-  var html =
+function htmlTable(rows) {
+  return (
     '<table style="border-collapse:collapse;font-family:Arial,sans-serif;font-size:14px">' +
     rows
       .map(function (row) {
@@ -172,9 +190,51 @@ function buildEmail(inquiry) {
         );
       })
       .join('') +
-    '</table>';
+    '</table>'
+  );
+}
 
-  return { plain: plain, html: html };
+/**
+ * What the customer was shown, and the working behind it.
+ *
+ * A follow-up call should start from the number already on the customer's screen, so the figure is
+ * repeated here even though sales could recompute it. When the estimate could not be produced the
+ * reason is stated plainly: the customer saw no figure, and the caller needs to know that.
+ */
+function estimateRows(estimate, problem) {
+  if (!estimate) {
+    return [['Estimate shown to the customer', 'None - ' + (problem || 'unavailable')]];
+  }
+  return [
+    ['Estimated monthly usage', estimate.monthlyKwh + ' kWh'],
+    ['Estimated system size', estimate.systemSizeKw + ' kW'],
+    ['Solar panels', estimate.panelCount],
+    ['Estimated cost shown to the customer', peso(estimate.estimatedTotal)],
+  ];
+}
+
+function buildEmail(inquiry, estimate, estimateProblem) {
+  var details = [
+    ['Full name', inquiry.fullName],
+    ['Email', inquiry.email],
+    ['Phone', inquiry.phone],
+    ['Preferred installation date', inquiry.installationDate],
+    ['Property type', inquiry.propertyTypeLabel],
+    ['Roof type', inquiry.roofType],
+    ['Number of floors', inquiry.floors],
+    ['Address', inquiry.address],
+    ['Average monthly bill', peso(inquiry.monthlyBill)],
+  ];
+  var figures = estimateRows(estimate, estimateProblem);
+
+  return {
+    plain: plainTable(details) + '\n\nEstimate\n' + plainTable(figures),
+    html:
+      htmlTable(details) +
+      '<p style="margin:22px 0 8px;font-family:Arial,sans-serif;font-size:13px;font-weight:700;' +
+      'letter-spacing:.08em;text-transform:uppercase;color:#60778a">Estimate</p>' +
+      htmlTable(figures),
+  };
 }
 
 /**
@@ -212,15 +272,72 @@ function resolveRecipient() {
 }
 
 /**
+ * Asks the pricing service for the figure to show the customer.
+ *
+ * The rates are edited by the administrator in Supabase and the arithmetic runs in the
+ * `quick-estimate` Edge Function. Nothing here knows what the company charges: this sends a
+ * property type and a bill, and receives back only the finished figures. That endpoint refuses
+ * browsers and requires the shared secret, so the only route to a priced answer is through this
+ * script — behind the honeypot, the timing check and the per-address rate limit.
+ *
+ * Every failure is reported rather than thrown. An inquiry that arrives without a figure is worth
+ * far more than one that is lost because the pricing service was briefly unavailable.
+ */
+function requestEstimate(propertyType, monthlyBill) {
+  var properties = PropertiesService.getScriptProperties();
+  var endpoint = String(properties.getProperty('ESTIMATE_ENDPOINT') || '').trim();
+  var secret = String(properties.getProperty('ESTIMATE_SHARED_SECRET') || '').trim();
+
+  if (!endpoint || !secret) {
+    return {
+      error: 'not configured',
+      detail: 'ESTIMATE_ENDPOINT or ESTIMATE_SHARED_SECRET is missing.',
+    };
+  }
+
+  var response;
+  try {
+    // UrlFetchApp has no timeout setting; `muteHttpExceptions` is what keeps a refusal from
+    // aborting the whole execution before the email is sent.
+    response = UrlFetchApp.fetch(endpoint, {
+      method: 'post',
+      contentType: 'application/json',
+      headers: { 'x-estimate-secret': secret },
+      payload: JSON.stringify({ propertyType: propertyType, monthlyBill: monthlyBill }),
+      muteHttpExceptions: true,
+    });
+  } catch (fetchError) {
+    return { error: 'unreachable', detail: String(fetchError) };
+  }
+
+  var status = response.getResponseCode();
+  var parsed = null;
+  try {
+    parsed = JSON.parse(response.getContentText());
+  } catch (parseError) {
+    return { error: 'unreadable reply', detail: 'HTTP ' + status };
+  }
+
+  if (status !== 200 || !parsed || !parsed.estimate) {
+    return {
+      error: 'refused',
+      detail: 'HTTP ' + status + ' ' + ((parsed && parsed.error) || ''),
+    };
+  }
+
+  return { estimate: parsed.estimate };
+}
+
+/**
  * Sends the notification, falling back to a plain message if the richer one is refused.
  *
  * The formatted version sets a sender name, a reply-to and an HTML body. If any of those is what
  * the account objects to, the plain three-argument form usually still goes through — and an
  * inquiry that arrives looking basic is far better than one that never arrives.
  */
-function deliver(recipient, inquiry) {
-  var body = buildEmail(inquiry);
-  var subject = 'New quote request - ' + inquiry.fullName;
+function deliver(recipient, inquiry, estimate, estimateProblem) {
+  var body = buildEmail(inquiry, estimate, estimateProblem);
+  var subject = 'New estimate request - ' + inquiry.fullName;
 
   try {
     MailApp.sendEmail({
@@ -298,7 +415,19 @@ function doPost(e) {
     return json({ ok: false, error: recipient.error, detail: recipient.error });
   }
 
-  var sent = deliver(recipient.address, checked.inquiry);
+  // Priced before sending so the sales team and the customer see the same figure. A failure here
+  // is recorded and carried into the email, never raised: the inquiry still has to arrive.
+  var priced = requestEstimate(checked.inquiry.propertyType, checked.inquiry.monthlyBill);
+  if (priced.error) {
+    logLine('Estimate unavailable (' + priced.error + '): ' + priced.detail);
+  }
+
+  var sent = deliver(
+    recipient.address,
+    checked.inquiry,
+    priced.estimate || null,
+    priced.error || null,
+  );
   if (!sent.ok) {
     // The reason is logged for the operator and returned as `detail`, which the website does not
     // display. Losing an inquiry to a message nobody can act on is the failure worth avoiding.
@@ -310,5 +439,7 @@ function doPost(e) {
     });
   }
 
-  return json({ ok: true });
+  // The figure reaches the browser only after the inquiry is safely in the inbox, and only as
+  // computed here. The website never works one out for itself.
+  return json({ ok: true, estimate: priced.estimate || null });
 }

@@ -157,3 +157,32 @@ another route.
 Use the arrows beside each record to set the order posts appear in, and the **Published** tick to
 show or hide one without deleting it. The four records supplied out of the box are placeholders:
 edit their titles and replace them with the posts you want to feature.
+
+## 11. Enable the estimate shown after an inquiry
+
+The **Get an Estimate** form turns a visitor's average monthly bill into a single figure, shown as
+soon as the form is submitted and repeated in the email to sales. The rates behind it live here.
+
+1. Open **SQL Editor** and run `supabase/migrations/202609060001_quick_estimate_settings.sql`. It
+   creates `quick_estimate_settings`, restricts it to the owner, and seeds one row with the
+   company's starting figures. The script is safe to run more than once.
+2. Open **Edge Functions** and choose **Deploy a new function -> Via Editor**. Name it
+   `quick-estimate`.
+3. Replace the editor contents with the complete contents of
+   `supabase/functions/quick-estimate/index.ts`.
+4. **Turn JWT verification off for this function.** Its caller is the Apps Script mailer, which
+   holds no Supabase session.
+5. Under **Edge Functions -> Secrets**, add `ESTIMATE_SHARED_SECRET` — any random string of at least
+   16 characters. The function refuses to run with a shorter one rather than leaving pricing open.
+6. Give the Apps Script mailer the same secret and the function URL. `EMAIL_SETUP.md` section 3c has
+   the exact property names.
+7. Sign in as the owner and open **Pricing -> Estimate rates** to review the figures.
+
+Unlike `quotation-estimate`, this function is not callable from a browser: it refuses any request
+carrying an `Origin` header and any request without the shared secret. That is deliberate. The
+estimate rises in a straight line with the bill, so an endpoint anyone could call would give up the
+price per kW and the battery cost after two requests. Routing it through the mailer puts the spam
+and rate-limit checks in front of it, and every attempt arrives in the sales inbox.
+
+If the section is skipped, the form still works and inquiries still reach sales — the visitor is
+simply shown no figure, and the email says so.

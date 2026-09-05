@@ -112,9 +112,16 @@ export function Header() {
           </ul>
         </nav>
 
-        <button className="header-quote" type="button" onClick={openInquiry}>
+        {/* The label is hidden on the narrowest phones, where it would squeeze the menu button, so
+            the accessible name is spelled out rather than left to the text. */}
+        <button
+          className="header-quote"
+          type="button"
+          aria-label="Get an Estimate"
+          onClick={openInquiry}
+        >
           <FileText aria-hidden="true" size={18} />
-          <span>Get a Quote</span>
+          <span>Get an Estimate</span>
         </button>
 
         <a
@@ -224,7 +231,7 @@ export function Header() {
             }}
           >
             <FileText aria-hidden="true" size={19} />
-            Get a Quote
+            Get an Estimate
           </button>
           <a
             className="button button--solar mobile-menu__call"

@@ -17,26 +17,61 @@ import vm from 'node:vm';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const source = await readFile(path.join(root, 'google-apps-script/quote-inquiry.gs'), 'utf8');
 
+/** A reply shaped like the one the quick-estimate function sends back. */
+const estimateReply = JSON.stringify({
+  estimate: {
+    propertyType: 'residential',
+    propertyTypeLabel: 'Residential',
+    monthlyBill: 8000,
+    monthlyKwh: 589,
+    systemSizeKw: 4.91,
+    panelCount: 8,
+    estimatedTotal: 291000,
+  },
+});
+
 /** Builds a fresh sandbox with the Apps Script services this script uses. */
 function load({
   recipient = 'sales@example.com',
   failRich = false,
   failPlain = false,
   quotaThrows = false,
+  estimateEndpoint = 'https://example.supabase.co/functions/v1/quick-estimate',
+  estimateSecret = 'a-secret-long-enough',
+  estimateStatus = 200,
+  estimateBody = estimateReply,
+  fetchThrows = false,
 } = {}) {
   const sent = [];
   const logs = [];
+  const fetched = [];
   const cache = new Map();
 
   const sandbox = {
     sent,
     logs,
+    fetched,
     console: { log: (message) => logs.push(String(message)) },
     Logger: { log: (message) => logs.push(String(message)) },
     PropertiesService: {
       getScriptProperties: () => ({
-        getProperty: (key) => (key === 'RECIPIENT_EMAIL' ? recipient : null),
+        getProperty: (key) =>
+          ({
+            RECIPIENT_EMAIL: recipient,
+            ESTIMATE_ENDPOINT: estimateEndpoint,
+            ESTIMATE_SHARED_SECRET: estimateSecret,
+          })[key] ?? null,
       }),
+    },
+    UrlFetchApp: {
+      fetch: (url, options) => {
+        fetched.push({ url, options });
+        if (fetchThrows) throw new Error('DNS lookup failed');
+        return {
+          getResponseCode: () => estimateStatus,
+          getContentText: () => estimateBody,
+        };
+      },
     },
     Session: { getEffectiveUser: () => ({ getEmail: () => 'owner@example.com' }) },
     CacheService: {
@@ -76,6 +111,7 @@ const inquiry = (overrides = {}) => ({
   email: 'juan@example.com',
   phone: '0997-688-4865',
   installationDate: '2026-09-05',
+  propertyType: 'residential',
   roofType: 'metal',
   floors: '2',
   address: '12 Rizal Street, Barangay San Jose, Pili',
@@ -128,10 +164,13 @@ test('a misconfigured recipient is named rather than surfacing as a send failure
   assert.equal(unset.sent[0].to, 'owner@example.com', 'it should fall back to the owner');
 });
 
-test('the health check separates the two setup mistakes', () => {
+test('the health check separates the setup mistakes', () => {
   const healthy = JSON.parse(load().doGet().text);
   assert.equal(healthy.recipientConfigured, true);
   assert.equal(healthy.mailAuthorised, true);
+  assert.equal(healthy.estimateConfigured, true);
+  // The page is public, so the probe may report that pricing works but never what it costs.
+  assert.equal(JSON.stringify(healthy).includes('291'), false);
 
   // Reading the quota needs the same permission as sending, so this is the authorisation signal.
   const unauthorised = JSON.parse(load({ quotaThrows: true }).doGet().text);
@@ -140,6 +179,68 @@ test('the health check separates the two setup mistakes', () => {
   const badMailbox = JSON.parse(load({ recipient: 'Sales Team' }).doGet().text);
   assert.equal(badMailbox.recipientConfigured, false);
   assert.ok(badMailbox.recipientProblem);
+
+  const noPricing = JSON.parse(load({ estimateSecret: null }).doGet().text);
+  assert.equal(noPricing.estimateConfigured, false);
+  assert.equal(noPricing.estimateProblem, 'not configured');
+});
+
+test('the estimate is fetched server-side and carried into the email', () => {
+  const box = load();
+  const result = post(box, inquiry());
+
+  assert.equal(result.ok, true);
+  // The browser is told the figure only after the inquiry is safely in the inbox, and only as it
+  // came back from the pricing service.
+  assert.equal(result.estimate.estimatedTotal, 291000);
+
+  const [call] = box.fetched;
+  assert.equal(call.options.headers['x-estimate-secret'], 'a-secret-long-enough');
+  assert.deepEqual(JSON.parse(call.options.payload), {
+    propertyType: 'residential',
+    monthlyBill: 8000,
+  });
+
+  // Sales sees the same number the customer saw, plus the working behind it.
+  assert.match(box.sent[0].body, /Estimated cost shown to the customer: ₱291,000/);
+  assert.match(box.sent[0].body, /Estimated system size: 4\.91 kW/);
+  assert.match(box.sent[0].body, /Solar panels: 8/);
+  assert.match(box.sent[0].subject, /New estimate request/);
+});
+
+test('a pricing failure never costs the inquiry', () => {
+  const unreachable = load({ fetchThrows: true });
+  const result = post(unreachable, inquiry());
+
+  assert.equal(result.ok, true, 'the lead must still be delivered');
+  assert.equal(result.estimate, null);
+  assert.equal(unreachable.sent.length, 1);
+  // Sales needs to know the customer was shown nothing, so the follow-up does not assume a figure.
+  assert.match(unreachable.sent[0].body, /Estimate shown to the customer: None - unreachable/);
+  assert.ok(unreachable.logs.some((line) => line.includes('Estimate unavailable')));
+
+  const refused = load({
+    estimateStatus: 401,
+    estimateBody: JSON.stringify({ error: 'Not authorised.' }),
+  });
+  assert.equal(post(refused, inquiry()).ok, true);
+  assert.match(refused.sent[0].body, /None - refused/);
+
+  const unset = load({ estimateEndpoint: null, estimateSecret: null });
+  assert.equal(post(unset, inquiry()).ok, true);
+  assert.match(unset.sent[0].body, /None - not configured/);
+});
+
+test('the property type is required and decides the tariff', () => {
+  const box = load();
+  assert.equal(post(box, inquiry({ propertyType: '' })).ok, false);
+  assert.equal(post(box, inquiry({ propertyType: 'agricultural' })).ok, false);
+  assert.equal(box.sent.length, 0, 'nothing should be priced or sent for an unknown type');
+
+  const commercial = load();
+  post(commercial, inquiry({ propertyType: 'commercial' }));
+  assert.equal(JSON.parse(commercial.fetched[0].options.payload).propertyType, 'commercial');
+  assert.match(commercial.sent[0].body, /Property type: Commercial/);
 });
 
 test('automated submissions are dropped and real ones are not', () => {

@@ -4,6 +4,7 @@ import type {
   QuotationRecord,
   QuotationSector,
   QuotationStatus,
+  QuickEstimateSettings,
   QuoteCategory,
   QuoteSettings,
 } from './quotationTypes';
@@ -183,6 +184,73 @@ export async function saveQuoteSettings(settings: QuoteSettings): Promise<QuoteS
     .single<SettingsRow>();
   if (result.error) throw result.error;
   return toSettings(result.data);
+}
+
+type QuickEstimateRow = {
+  residential_rate_per_kwh: number;
+  commercial_rate_per_kwh: number;
+  industrial_rate_per_kwh: number;
+  peak_sun_hours: number;
+  days_per_month: number;
+  panel_watts: number;
+  price_per_kw: number;
+  battery_cost: number;
+  rounding_step: number;
+};
+
+const quickEstimateColumns =
+  'residential_rate_per_kwh, commercial_rate_per_kwh, industrial_rate_per_kwh, peak_sun_hours, days_per_month, panel_watts, price_per_kw, battery_cost, rounding_step';
+
+function toQuickEstimateSettings(row: QuickEstimateRow): QuickEstimateSettings {
+  return {
+    residentialRatePerKwh: Number(row.residential_rate_per_kwh),
+    commercialRatePerKwh: Number(row.commercial_rate_per_kwh),
+    industrialRatePerKwh: Number(row.industrial_rate_per_kwh),
+    peakSunHours: Number(row.peak_sun_hours),
+    daysPerMonth: Number(row.days_per_month),
+    panelWatts: Number(row.panel_watts),
+    pricePerKw: Number(row.price_per_kw),
+    batteryCost: Number(row.battery_cost),
+    roundingStep: Number(row.rounding_step),
+  };
+}
+
+export async function fetchQuickEstimateSettings(): Promise<QuickEstimateSettings> {
+  const client = await requireSupabase();
+  const result = await client
+    .from('quick_estimate_settings')
+    .select(quickEstimateColumns)
+    .eq('id', 'default')
+    .maybeSingle<QuickEstimateRow>();
+  if (result.error) throw result.error;
+  if (!result.data) {
+    throw new Error('The estimate settings have not been created yet.');
+  }
+  return toQuickEstimateSettings(result.data);
+}
+
+export async function saveQuickEstimateSettings(
+  settings: QuickEstimateSettings,
+): Promise<QuickEstimateSettings> {
+  const client = await requireSupabase();
+  const result = await client
+    .from('quick_estimate_settings')
+    .update({
+      residential_rate_per_kwh: settings.residentialRatePerKwh,
+      commercial_rate_per_kwh: settings.commercialRatePerKwh,
+      industrial_rate_per_kwh: settings.industrialRatePerKwh,
+      peak_sun_hours: settings.peakSunHours,
+      days_per_month: settings.daysPerMonth,
+      panel_watts: settings.panelWatts,
+      price_per_kw: settings.pricePerKw,
+      battery_cost: settings.batteryCost,
+      rounding_step: settings.roundingStep,
+    })
+    .eq('id', 'default')
+    .select(quickEstimateColumns)
+    .single<QuickEstimateRow>();
+  if (result.error) throw result.error;
+  return toQuickEstimateSettings(result.data);
 }
 
 export async function fetchQuoteCategories(): Promise<QuoteCategory[]> {

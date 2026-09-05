@@ -21,15 +21,42 @@ export const roofTypes = [
 
 export type RoofType = (typeof roofTypes)[number]['value'];
 
+/**
+ * Decides which electricity tariff the estimate is worked out from. The rate behind each of these
+ * is set by the administrator and never reaches the browser.
+ */
+export const propertyTypes = [
+  { value: 'residential', label: 'Residential' },
+  { value: 'commercial', label: 'Commercial' },
+  { value: 'industrial', label: 'Industrial' },
+] as const;
+
+export type PropertyType = (typeof propertyTypes)[number]['value'];
+
 export type InquiryValues = {
   fullName: string;
   email: string;
   phone: string;
   installationDate: string;
+  propertyType: PropertyType | '';
   roofType: RoofType | '';
   floors: string;
   address: string;
   monthlyBill: string;
+};
+
+/**
+ * The finished figures the server sends back, in the order they are shown.
+ *
+ * Only these reach the browser. The tariff, the price per kW, the battery cost and the panel
+ * rating they were derived from stay on the server, as does the arithmetic itself.
+ */
+export type InquiryEstimate = {
+  propertyTypeLabel: string;
+  monthlyKwh: number;
+  systemSizeKw: number;
+  panelCount: number;
+  estimatedTotal: number;
 };
 
 export type InquiryErrors = Partial<Record<keyof InquiryValues, string>>;
@@ -39,6 +66,7 @@ export const emptyInquiry: InquiryValues = {
   email: '',
   phone: '',
   installationDate: '',
+  propertyType: '',
   roofType: '',
   floors: '',
   address: '',
@@ -75,6 +103,9 @@ export function validateInquiry(values: InquiryValues): InquiryErrors {
   } else if (values.installationDate < todayIsoDate()) {
     errors.installationDate = 'Choose a date that has not already passed.';
   }
+  if (!values.propertyType) {
+    errors.propertyType = 'Select your property type.';
+  }
   if (!values.roofType) {
     errors.roofType = 'Select your roof type.';
   }
@@ -100,14 +131,46 @@ export type InquiryContext = {
 };
 
 /**
+ * Reads the figures out of the reply.
+ *
+ * Anything missing or nonsensical yields null rather than a partly filled panel: the success
+ * message stands on its own, and a half-drawn estimate would be worse than none.
+ */
+function parseEstimate(value: unknown): InquiryEstimate | null {
+  if (!value || typeof value !== 'object') return null;
+  const raw = value as Record<string, unknown>;
+
+  const figure = (key: string) => {
+    const parsed = typeof raw[key] === 'number' ? (raw[key] as number) : Number.NaN;
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+  };
+
+  const monthlyKwh = figure('monthlyKwh');
+  const systemSizeKw = figure('systemSizeKw');
+  const panelCount = figure('panelCount');
+  const estimatedTotal = figure('estimatedTotal');
+  const propertyTypeLabel =
+    typeof raw.propertyTypeLabel === 'string' ? raw.propertyTypeLabel.trim() : '';
+
+  if (!monthlyKwh || !systemSizeKw || !panelCount || !estimatedTotal || !propertyTypeLabel) {
+    return null;
+  }
+  return { propertyTypeLabel, monthlyKwh, systemSizeKw, panelCount, estimatedTotal };
+}
+
+/**
  * The endpoint is passed in rather than read from the environment here, so this module stays free
  * of Vite-only globals and its validation rules can be exercised directly by the test suite.
+ *
+ * Resolves with the estimate the server worked out, or null when it could not produce one. A
+ * missing estimate is not an error: the inquiry has still reached the sales inbox, which is the
+ * part that must not fail.
  */
 export async function submitInquiry(
   endpoint: string,
   values: InquiryValues,
   context: InquiryContext,
-): Promise<void> {
+): Promise<InquiryEstimate | null> {
   if (!endpoint) {
     throw new Error('The inquiry form is not connected yet. Please call us and we will help.');
   }
@@ -117,6 +180,7 @@ export async function submitInquiry(
     email: values.email.trim(),
     phone: values.phone.trim(),
     installationDate: values.installationDate,
+    propertyType: values.propertyType,
     roofType: values.roofType,
     roofTypeLabel: roofTypes.find((type) => type.value === values.roofType)?.label ?? '',
     floors: values.floors.trim(),
@@ -146,9 +210,9 @@ export async function submitInquiry(
   }
 
   const body = await response.text();
-  let result: { ok?: boolean; error?: string };
+  let result: { ok?: boolean; error?: string; estimate?: unknown };
   try {
-    result = JSON.parse(body) as { ok?: boolean; error?: string };
+    result = JSON.parse(body) as { ok?: boolean; error?: string; estimate?: unknown };
   } catch {
     throw new Error('Your inquiry could not be confirmed. Please call us so we do not miss it.');
   }
@@ -156,4 +220,6 @@ export async function submitInquiry(
   if (!result.ok) {
     throw new Error(result.error ?? 'Your inquiry was not accepted. Please try again.');
   }
+
+  return parseEstimate(result.estimate);
 }

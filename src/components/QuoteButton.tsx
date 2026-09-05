@@ -16,7 +16,7 @@ type QuoteButtonProps = {
  */
 export function QuoteButton({
   variant = 'solar',
-  label = 'Get a Quote',
+  label = 'Get an Estimate',
   className,
 }: QuoteButtonProps) {
   const { openInquiry } = useQuoteDialog();
