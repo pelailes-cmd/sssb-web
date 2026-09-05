@@ -182,7 +182,8 @@ test('the health check separates the setup mistakes', () => {
 
   const noPricing = JSON.parse(load({ estimateSecret: null }).doGet().text);
   assert.equal(noPricing.estimateConfigured, false);
-  assert.equal(noPricing.estimateProblem, 'not configured');
+  // Naming the property is the whole of the fix, so the reason says which one is missing.
+  assert.equal(noPricing.estimateProblem, 'not configured (add ESTIMATE_SHARED_SECRET)');
 });
 
 test('the estimate is fetched server-side and carried into the email', () => {
@@ -228,7 +229,10 @@ test('a pricing failure never costs the inquiry', () => {
 
   const unset = load({ estimateEndpoint: null, estimateSecret: null });
   assert.equal(post(unset, inquiry()).ok, true);
-  assert.match(unset.sent[0].body, /None - not configured/);
+  assert.match(
+    unset.sent[0].body,
+    /None - not configured \(add ESTIMATE_ENDPOINT and ESTIMATE_SHARED_SECRET\)/,
+  );
 });
 
 test('the property type is required and decides the tariff', () => {

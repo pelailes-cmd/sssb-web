@@ -289,9 +289,15 @@ function requestEstimate(propertyType, monthlyBill) {
   var secret = String(properties.getProperty('ESTIMATE_SHARED_SECRET') || '').trim();
 
   if (!endpoint || !secret) {
+    var missing = [];
+    if (!endpoint) missing.push('ESTIMATE_ENDPOINT');
+    if (!secret) missing.push('ESTIMATE_SHARED_SECRET');
+    // Named rather than generic. This reason is what the sales email and the public health check
+    // both report, and knowing which property to add is the whole of the fix. The names are in the
+    // repository already, so spelling them out reveals nothing.
     return {
-      error: 'not configured',
-      detail: 'ESTIMATE_ENDPOINT or ESTIMATE_SHARED_SECRET is missing.',
+      error: 'not configured (add ' + missing.join(' and ') + ')',
+      detail: 'Script Properties missing: ' + missing.join(', '),
     };
   }
 

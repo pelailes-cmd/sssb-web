@@ -170,8 +170,9 @@ open **Executions** in the left sidebar and look at the most recent `doPost` ent
 The email says `Estimate shown to the customer: None`, followed by the reason. The same reason is on
 the health check as `estimateProblem`:
 
-- `not configured` — `ESTIMATE_ENDPOINT` or `ESTIMATE_SHARED_SECRET` is missing from Script
-  Properties. See section 3c.
+- `not configured (add …)` — the named Script Property is missing. This is the reason to expect if
+  section 3 has not been done yet. Adding the property takes effect immediately; only a change to
+  the script's **code** needs a new deployment version. See section 3c.
 - `refused` — the endpoint answered but would not price the request. Almost always the two copies of
   the secret differ, or JWT verification is still switched on for the function. The execution log
   records the exact status.
