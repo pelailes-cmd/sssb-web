@@ -178,23 +178,43 @@ test('the mailer validates everything again on its own side', async () => {
   assert.doesNotMatch(script, /eval\(/);
 });
 
-test('the estimator is reachable but is no longer a page section', async () => {
+test('the detailed estimator is switched off and says so', async () => {
   const app = await readFile(path.join(root, 'src/App.tsx'), 'utf8');
   assert.doesNotMatch(app, /QuotationSection/);
-  assert.match(app, /QuotationEstimateDialog/);
   assert.match(app, /QuoteInquiryDialog/);
 
   const siteData = await readFile(path.join(root, 'src/data/siteData.ts'), 'utf8');
   assert.doesNotMatch(siteData, /href: '#quotation'/);
 
+  // The link stays so the plan is visible, but it explains itself rather than opening a builder
+  // that is not ready to be relied on.
   const footer = await readFile(path.join(root, 'src/components/Footer.tsx'), 'utf8');
   assert.match(footer, /Get a free quote now!/);
+  assert.match(footer, /under construction/);
+  assert.doesNotMatch(footer, /openEstimate/, 'the footer must no longer open the estimator');
 
   const header = await readFile(path.join(root, 'src/components/Header.tsx'), 'utf8');
   assert.match(header, /Get an Estimate/);
   assert.match(header, /header-quote/);
   // The label is hidden on the narrowest phones, so the button needs a name of its own.
   assert.match(header, /aria-label="Get an Estimate"/);
+});
+
+test('the wordmark is one line in one colour wherever it appears', async () => {
+  for (const file of ['src/components/Header.tsx', 'src/components/Footer.tsx']) {
+    const source = await readFile(path.join(root, file), 'utf8');
+    assert.match(
+      source,
+      /<span className="brand__copy">Smart Save Solar<\/span>/,
+      `${file} should carry the wordmark as a single line`,
+    );
+  }
+
+  // The two-tone stacked lockup is gone, so nothing may restore a second colour through the old
+  // element rules.
+  const css = await readFile(path.join(root, 'src/styles.css'), 'utf8');
+  assert.doesNotMatch(css, /\.brand__copy (strong|small)/);
+  assert.match(css, /\.brand__copy \{[^}]*white-space: nowrap/);
 });
 
 test('every section the client asked for offers the quote button', async () => {
