@@ -413,7 +413,23 @@ function testEstimate() {
   var endpoint = String(
     PropertiesService.getScriptProperties().getProperty('ESTIMATE_ENDPOINT') || '',
   ).trim();
-  logLine('ESTIMATE_ENDPOINT is ' + (endpoint || 'not set'));
+  if (!endpoint) {
+    throw new Error('ESTIMATE_ENDPOINT is not set. See EMAIL_SETUP.md section 3c.');
+  }
+  logLine('ESTIMATE_ENDPOINT is ' + endpoint);
+
+  // Deliberately unguarded, and deliberately before anything else.
+  //
+  // `requestEstimate` catches every failure so that a pricing problem can never cost an inquiry.
+  // That is right for a submission and wrong here: catching the authorisation error is precisely
+  // what stops Apps Script offering the consent screen for a permission the project has not been
+  // granted. Fetching an external URL is such a permission — this project did not need one until
+  // the estimate was added, so a script authorised before then has to ask for it. Letting this
+  // call throw is what makes the prompt appear.
+  //
+  // The reply is discarded. It carries no secret, so the service will refuse it, and that is fine:
+  // being refused still proves the call was allowed to leave.
+  UrlFetchApp.fetch(endpoint, { method: 'post', payload: '{}', muteHttpExceptions: true });
 
   var result = requestEstimate('residential', 10000);
   if (result.error) {

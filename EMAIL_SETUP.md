@@ -173,10 +173,17 @@ that page is public:
 
 - `not authorised to fetch` — **the most likely reason the first time.** Calling an external URL is
   a permission this project did not need until the estimate was added, so a script authorised
-  before then cannot do it, however correct the URL and secret are. Fix it the same way as the mail
-  permission: in the script editor choose `testEstimate` from the function list beside **Run** and
-  press Run. Google will ask for the new permission; grant it, then go to **Deploy → Manage
-  deployments → edit → Version: New version**.
+  before then cannot do it, however correct the URL and secret are. In the script editor choose
+  `testEstimate` from the function list beside **Run** and press Run: it makes one deliberately
+  unguarded call, which is what lets Google offer the consent screen. Choose **Review permissions →
+  Advanced → Go to (project name) → Allow**, run it once more to confirm it now answers, then go to
+  **Deploy → Manage deployments → edit → Version: New version**.
+
+  If no consent screen appears and the same error comes straight back, the editor is holding a
+  stale list of the permissions this script needs. Revoke the project at
+  <https://myaccount.google.com/permissions>, reload the editor tab, and run `testEstimate` again —
+  you will be asked for every permission from scratch, mail included.
+
 - `not configured (add …)` — the named Script Property is missing. Expect this if section 3 has not
   been done. Adding a property takes effect immediately; only a change to the script's **code**
   needs a new deployment version. See section 3c.

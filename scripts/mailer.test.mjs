@@ -257,13 +257,29 @@ test('a missing fetch permission is not reported as a network problem', () => {
   assert.equal(JSON.stringify(health).includes('external_request'), false);
 });
 
-test('testEstimate reports the problem by throwing', () => {
-  assert.throws(() => load({ estimateEndpoint: null }).testEstimate(), /not configured/);
-  assert.throws(() => load({ fetchThrows: true }).testEstimate(), /unreachable/);
+test('testEstimate lets an authorisation error escape rather than reporting it', () => {
+  // The whole point of running it from the editor is to be offered the consent screen. Apps Script
+  // only offers it when the authorisation error goes unhandled, so this one call must not be
+  // wrapped the way the submission path wraps it.
+  const denied = 'Exception: You do not have permission to call UrlFetchApp.fetch.';
+  assert.throws(() => load({ fetchThrows: denied }).testEstimate(), /do not have permission/);
+
+  assert.throws(
+    () => load({ estimateEndpoint: null }).testEstimate(),
+    /ESTIMATE_ENDPOINT is not set/,
+  );
+
+  // Anything the service itself refuses is still reported plainly, since no prompt would help.
+  const refused = load({
+    estimateStatus: 401,
+    estimateBody: JSON.stringify({ error: 'Not authorised.' }),
+  });
+  assert.throws(() => refused.testEstimate(), /refused/);
 
   const box = load();
   assert.match(box.testEstimate(), /reachable/);
-  assert.equal(box.fetched.length, 1);
+  // The unguarded probe, then the real request.
+  assert.equal(box.fetched.length, 2);
 });
 
 test('the property type is required and decides the tariff', () => {
