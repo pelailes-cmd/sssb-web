@@ -91,10 +91,7 @@ export function Header() {
       <div className="site-header__inner">
         <a className="brand" href="#home" aria-label={`${business.name} home`}>
           <img src={assetUrl('assets/brand/brand-mark.png')} alt="" width="48" height="48" />
-          <span className="brand__copy">
-            <strong>Smart Save</strong>
-            <small>Solar</small>
-          </span>
+          <span className="brand__copy">Smart Save Solar</span>
         </a>
 
         <nav className="desktop-nav" aria-label="Primary navigation">

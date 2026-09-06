@@ -484,23 +484,15 @@ section[id] {
   object-position: center;
 }
 
+/* One line, one colour: the wordmark reads as a single name rather than a stacked lockup. It sets
+   the width of the whole brand link, so the size is fluid — on a phone it shares the header row
+   with the estimate button and the menu. */
 .brand__copy {
-  display: grid;
-  line-height: 1.02;
-}
-
-.brand__copy strong {
-  font-size: 0.93rem;
-  letter-spacing: -0.02em;
-}
-
-.brand__copy small {
-  margin-top: 0.25rem;
-  color: var(--color-solar);
-  font-size: 0.69rem;
+  font-size: clamp(0.86rem, 1.05vw, 1.02rem);
   font-weight: 800;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
+  letter-spacing: -0.01em;
+  line-height: 1.05;
+  white-space: nowrap;
 }
 
 .desktop-nav {
@@ -513,7 +505,10 @@ section[id] {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: clamp(0.45rem, 0.9vw, 1rem);
+  /* Wider than the original, which read as cramped. The ceiling is not the viewport but the header
+     itself: its inner width caps at --container-wide, so the row has about 750px to play with at
+     every desktop size. Measured, the nine items and eight gaps come to ~720px here. */
+  gap: clamp(0.78rem, 1vw, 0.98rem);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -525,7 +520,10 @@ section[id] {
   min-height: 2.6rem;
   align-items: center;
   color: #d5e5f0;
-  font-size: clamp(0.68rem, 0.73vw, 0.78rem);
+  /* Up from 0.68rem. The middle term has to out-pace the viewport for the size to move at all: at
+     0.73vw even a 1440px screen landed below the floor, so the original clamp sat pinned at its
+     minimum everywhere and the size never actually changed. */
+  font-size: clamp(0.75rem, 0.92vw, 0.83rem);
   font-weight: 690;
   line-height: 1.15;
   text-align: center;
@@ -3519,12 +3517,8 @@ section[id] {
     height: 2.75rem;
   }
 
-  .brand__copy strong {
+  .brand__copy {
     font-size: 0.82rem;
-  }
-
-  .brand__copy small {
-    font-size: 0.6rem;
   }
 
   .header-call {
@@ -3879,12 +3873,8 @@ section[id] {
 }
 
 @media (max-width: 390px) {
-  .brand__copy strong {
-    max-width: 8.5rem;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
+  /* The stacked lockup used to be truncated with an ellipsis here. Measured, the one-line wordmark
+     needs 167px of the 344px available at 360px, so it is shown in full instead. */
 
   .hero__location {
     font-size: 0.7rem;
@@ -5238,6 +5228,22 @@ dialog.admin-dashboard[open] {
   }
 
   .header-admin span {
+    display: none;
+  }
+}
+
+/* Between the width the navigation appears at and the width there is room for every label, the
+   call button shows its icon alone — the same compromise the login button above already makes. The
+   one-line wordmark is 36px wider than the stacked lockup it replaced, and this is where that room
+   comes from; without it the nav items overflow their box and print over the brand. */
+@media (min-width: 1180px) and (max-width: 1399px) {
+  .header-call {
+    width: 2.8rem;
+    justify-content: center;
+    padding-inline: 0;
+  }
+
+  .header-call span {
     display: none;
   }
 }
@@ -6694,6 +6700,19 @@ dialog.admin-dashboard[open] {
   cursor: pointer;
 }
 
+/* Shown in place of opening the estimator, directly beneath the link that was pressed. */
+.site-footer__notice {
+  max-width: 34ch;
+  margin: 0.9rem 0 0;
+  padding: 0.7rem 0.85rem;
+  border: 1px solid rgba(241, 233, 46, 0.28);
+  border-radius: var(--radius-sm);
+  color: #d3e2eb;
+  background: rgba(241, 233, 46, 0.08);
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
 .site-footer__quote:hover {
   text-decoration: underline;
 }
@@ -6914,26 +6933,17 @@ dialog.quote-dialog[open] {
   }
 }
 
-/* Measured: the labelled button needs 157px, and the room left beside the brand is 130px at 360px
-   but 160px at 390px. So the label survives on most phones and is dropped only on the narrowest,
-   where keeping it would squeeze the menu button below its touch target. */
-@media (max-width: 369px) {
+/* Measured: the one-line wordmark takes 167px, the labelled button 157px and the menu 48px, which
+   with the row gaps needs about 470px of header before it all fits. Below that the button keeps its
+   icon and gives up its label — it still has an aria-label, whereas the wordmark has nowhere to go.
+   Above it there is room to spare. */
+@media (max-width: 479px) {
   .header-quote span {
     display: none;
   }
 
   .header-quote {
     padding-inline: 0.85rem;
-  }
-}
-
-/* Just above that cut the label fits, but with only a few pixels to spare on a 390px phone.
-   Trimming the pill buys back about ten, so a slightly wider font rendering cannot push the header
-   row into a horizontal scroll. */
-@media (min-width: 370px) and (max-width: 429px) {
-  .header-quote {
-    gap: 0.4rem;
-    padding-inline: 0.72rem;
   }
 }
 

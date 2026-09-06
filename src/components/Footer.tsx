@@ -1,9 +1,11 @@
 import { ArrowUp, MapPin, Phone } from 'lucide-react';
-import { useQuoteDialog } from '../cms/QuoteDialogContext';
+import { useState } from 'react';
 import { assetUrl, business, navItems } from '../data/siteData';
 
 export function Footer() {
-  const { openEstimate } = useQuoteDialog();
+  // The detailed estimator is switched off for now. The link stays so the plan is visible, but it
+  // explains itself rather than opening a builder that is not ready to be relied on.
+  const [showEstimatorNotice, setShowEstimatorNotice] = useState(false);
 
   return (
     <footer className="site-footer">
@@ -17,10 +19,7 @@ export function Footer() {
               height="54"
               loading="lazy"
             />
-            <span className="brand__copy">
-              <strong>Smart Save</strong>
-              <small>Solar</small>
-            </span>
+            <span className="brand__copy">Smart Save Solar</span>
           </a>
           <p>{business.tagline}</p>
           <span>{business.supportingName}</span>
@@ -35,15 +34,26 @@ export function Footer() {
                   <a href={item.href}>{item.label}</a>
                 </li>
               ))}
-              {/* Sits directly below About Us. The detailed estimator is no longer a section of
-                  the page, so this is where it is reached from. */}
+              {/* Sits directly below About Us, where the detailed estimator used to be reached
+                  from. */}
               <li>
-                <button className="site-footer__quote" type="button" onClick={openEstimate}>
+                <button
+                  className="site-footer__quote"
+                  type="button"
+                  aria-expanded={showEstimatorNotice}
+                  onClick={() => setShowEstimatorNotice(true)}
+                >
                   Get a free quote now!
                 </button>
               </li>
             </ul>
           </nav>
+          {showEstimatorNotice ? (
+            <p className="site-footer__notice" role="status">
+              This feature is under construction, don&rsquo;t worry, we will update on our pages
+              once this feature is active.
+            </p>
+          ) : null}
         </div>
 
         <div className="site-footer__contact">
