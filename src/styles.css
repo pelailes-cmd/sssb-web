@@ -1,8 +1,15 @@
 :root {
-  --color-navy-975: #041423;
-  --color-navy-950: #061b31;
-  --color-navy-900: #082f55;
-  --color-navy-800: #0a4779;
+  /* The dark surfaces read as a deep blue rather than as near-black. Lightened deliberately, and
+     measured: on the hero this leaves white at 10.6:1, the solar yellow at 8.3:1 and the cyan
+     eyebrow at 6.5:1, all clear of the 4.5:1 floor. */
+  --color-navy-975: #0c3053;
+  --color-navy-950: #10406e;
+  --color-navy-900: #155693;
+  /* Small text on light backgrounds - eyebrows, badges, chips - so it is deliberately not
+     lightened alongside the surfaces above, where the contrast it needs runs the other way. It
+     belongs to the blue ramp: keeping the navy-800 name would now imply it is lighter than
+     navy-900, which it is not. */
+  --color-blue-800: #0a4779;
   --color-blue-700: #0768b2;
   --color-blue-600: #0b83d4;
   --color-blue-500: #18a2e3;
@@ -444,7 +451,7 @@ section[id] {
   padding: 0.58rem 0.65rem 0.58rem 0.7rem;
   border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: 1.3rem;
-  background: rgba(5, 24, 42, 0.7);
+  background: rgba(12, 58, 101, 0.7);
   box-shadow: 0 12px 45px rgba(0, 0, 0, 0.1);
   backdrop-filter: blur(18px) saturate(130%);
   pointer-events: auto;
@@ -456,7 +463,7 @@ section[id] {
 
 .site-header--scrolled .site-header__inner {
   min-height: 4.05rem;
-  background: rgba(5, 24, 42, 0.94);
+  background: rgba(12, 58, 101, 0.94);
   box-shadow: 0 16px 44px rgba(1, 14, 26, 0.22);
 }
 
@@ -719,7 +726,7 @@ section[id] {
   background:
     radial-gradient(circle at 76% 18%, rgba(18, 144, 217, 0.34), transparent 30%),
     radial-gradient(circle at 48% 86%, rgba(76, 194, 218, 0.15), transparent 40%),
-    linear-gradient(110deg, #041827 0%, #062b4c 42%, #0a4c7d 100%);
+    linear-gradient(110deg, #0a3d63 0%, #0b4e89 42%, #0d63a3 100%);
 }
 
 .hero-scene,
@@ -850,7 +857,7 @@ section[id] {
   border: 1px solid rgba(255, 255, 255, 0.18);
   border-radius: var(--radius-lg);
   opacity: var(--hero-support-opacity);
-  background: rgba(4, 24, 42, 0.78);
+  background: rgba(10, 59, 103, 0.78);
   box-shadow: var(--shadow-lg);
   transform: translate3d(0, var(--hero-support-y), 0);
   backdrop-filter: blur(20px) saturate(120%);
@@ -984,7 +991,7 @@ section[id] {
   background:
     repeating-linear-gradient(90deg, transparent 0 8.1%, rgba(116, 210, 234, 0.58) 8.4% 8.8%),
     repeating-linear-gradient(0deg, transparent 0 16%, rgba(116, 210, 234, 0.55) 16.4% 17%),
-    linear-gradient(145deg, #082b49, #0e507c 50%, #041727);
+    linear-gradient(145deg, #0f4e85, #12679f 50%, #0a3a63);
   box-shadow: 0 28px 60px rgba(0, 0, 0, 0.28);
   transform: rotateX(56deg) rotateZ(-12deg);
 }
@@ -1288,7 +1295,7 @@ section[id] {
 
 .service-commitment .eyebrow {
   margin-bottom: 0.45rem;
-  color: var(--color-navy-800);
+  color: var(--color-blue-800);
 }
 
 .service-commitment h3,
@@ -1393,7 +1400,7 @@ section[id] {
   color: var(--color-white);
   background:
     radial-gradient(circle at 82% 30%, rgba(21, 151, 218, 0.33), transparent 32%),
-    linear-gradient(135deg, #041a2e 0%, #082c4a 58%, #0a4268 100%);
+    linear-gradient(135deg, #093c6b 0%, #0e5086 58%, #0f6199 100%);
   box-shadow: var(--shadow-lg);
   overflow: hidden;
 }
@@ -1569,7 +1576,7 @@ section[id] {
 .model-preview--showcase .model-preview__badge {
   color: #dff7ff;
   border-color: rgba(122, 218, 248, 0.2);
-  background: rgba(2, 24, 42, 0.7);
+  background: rgba(5, 60, 105, 0.7);
 }
 
 .model-preview__gesture {
@@ -1584,7 +1591,7 @@ section[id] {
 .model-preview--showcase .model-preview__gesture {
   color: #c7e6f2;
   border-color: rgba(122, 218, 248, 0.2);
-  background: rgba(2, 24, 42, 0.7);
+  background: rgba(5, 60, 105, 0.7);
 }
 
 .model-preview__reset {
@@ -1609,7 +1616,7 @@ section[id] {
 .model-preview--showcase .model-preview__reset {
   color: #dff7ff;
   border-color: rgba(122, 218, 248, 0.2);
-  background: rgba(2, 24, 42, 0.7);
+  background: rgba(5, 60, 105, 0.7);
 }
 
 .model-preview__reset:hover {
@@ -1710,7 +1717,7 @@ section[id] {
   left: 50%;
   color: #dff7ff;
   border-color: rgba(122, 218, 248, 0.2);
-  background: rgba(2, 24, 42, 0.72);
+  background: rgba(5, 60, 105, 0.72);
   transform: translateX(-50%);
   white-space: nowrap;
 }
@@ -1983,7 +1990,7 @@ section[id] {
   bottom: 0.75rem;
   padding: 0.32rem 0.55rem;
   border-radius: 999px;
-  color: var(--color-navy-800);
+  color: var(--color-blue-800);
   background: rgba(255, 255, 255, 0.9);
   font-size: 0.64rem;
   font-weight: 760;
@@ -2287,7 +2294,7 @@ section[id] {
   padding: 2rem;
   background:
     radial-gradient(circle at 30% 20%, rgba(66, 196, 232, 0.35), transparent 28%),
-    linear-gradient(150deg, #062e55, #0878c4 62%, #e8ee48 140%);
+    linear-gradient(150deg, #0a5093, #0878c4 62%, #e8ee48 140%);
   overflow: hidden;
 }
 
@@ -2421,7 +2428,7 @@ section[id] {
   gap: 0.35rem;
   padding: 0.42rem 0.6rem;
   border-radius: 999px;
-  color: var(--color-navy-800);
+  color: var(--color-blue-800);
   background: var(--color-cyan-100);
   font-size: 0.65rem;
   font-weight: 790;
@@ -2653,7 +2660,7 @@ section[id] {
   background:
     linear-gradient(145deg, transparent 0 56%, rgba(120, 217, 233, 0.12) 56% 57%, transparent 57%),
     radial-gradient(circle at 70% 25%, rgba(241, 233, 46, 0.22), transparent 16%),
-    linear-gradient(160deg, #093c64, #06192c);
+    linear-gradient(160deg, #0e5b98, #0e3a66);
   overflow: hidden;
 }
 
@@ -2667,7 +2674,7 @@ section[id] {
   border: 4px solid #9eb9c8;
   background:
     repeating-linear-gradient(90deg, transparent 0 15%, rgba(120, 217, 233, 0.45) 15.5% 16%),
-    repeating-linear-gradient(0deg, transparent 0 24%, rgba(120, 217, 233, 0.42) 24.5% 25%), #082e4d;
+    repeating-linear-gradient(0deg, transparent 0 24%, rgba(120, 217, 233, 0.42) 24.5% 25%), #0e5289;
   content: '';
   transform: rotate(-9deg) skewX(-5deg);
   box-shadow: 0 24px 50px rgba(0, 0, 0, 0.24);
@@ -3086,7 +3093,7 @@ section[id] {
   color: var(--color-white);
   background:
     radial-gradient(circle at 80% 10%, rgba(24, 162, 227, 0.34), transparent 30%),
-    linear-gradient(145deg, var(--color-navy-950), var(--color-navy-800));
+    linear-gradient(145deg, var(--color-navy-950), var(--color-blue-800));
   box-shadow: var(--shadow-md);
   overflow: hidden;
 }
@@ -3204,7 +3211,7 @@ section[id] {
 /* Footer */
 .site-footer {
   color: var(--color-white);
-  background: #03111f;
+  background: #0c2f4f;
 }
 
 .site-footer__top {
@@ -6069,7 +6076,7 @@ dialog.admin-dashboard[open] {
   flex: 0 0 auto;
   width: 1.3rem;
   height: 1.3rem;
-  color: var(--color-navy-800);
+  color: var(--color-blue-800);
 }
 
 .quotation-disclaimer p {
