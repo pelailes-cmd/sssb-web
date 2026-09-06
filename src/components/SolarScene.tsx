@@ -57,9 +57,9 @@ function createPanelTexture() {
   if (!context) return new THREE.CanvasTexture(canvas);
 
   const gradient = context.createLinearGradient(0, 0, canvas.width, canvas.height);
-  gradient.addColorStop(0, '#092846');
-  gradient.addColorStop(0.55, '#0d416b');
-  gradient.addColorStop(1, '#061a30');
+  gradient.addColorStop(0, '#114a81');
+  gradient.addColorStop(0.55, '#125c97');
+  gradient.addColorStop(1, '#0d3a6b');
   context.fillStyle = gradient;
   context.fillRect(0, 0, canvas.width, canvas.height);
 
@@ -142,11 +142,11 @@ export default function SolarScene({ reducedMotion }: SolarSceneProps) {
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
     const scene = new THREE.Scene();
-    scene.fog = new THREE.FogExp2(0x061a2e, mobile ? 0.055 : 0.043);
+    scene.fog = new THREE.FogExp2(0x0e3b69, mobile ? 0.055 : 0.043);
     const camera = new THREE.PerspectiveCamera(mobile ? 48 : 40, 1, 0.1, 70);
     camera.position.set(mobile ? 4.8 : 6.6, mobile ? 4.3 : 5.3, mobile ? 8.4 : 9.2);
 
-    scene.add(new THREE.HemisphereLight(0x86dfff, 0x061421, mobile ? 1.25 : 1.55));
+    scene.add(new THREE.HemisphereLight(0x86dfff, 0x103659, mobile ? 1.25 : 1.55));
     const keyLight = new THREE.DirectionalLight(0xfff4b8, mobile ? 2.1 : 3.2);
     keyLight.position.set(-5, 8, 3);
     keyLight.castShadow = !mobile;
@@ -178,7 +178,7 @@ export default function SolarScene({ reducedMotion }: SolarSceneProps) {
     const ground = new THREE.Mesh(
       new THREE.CircleGeometry(mobile ? 10 : 15, 64),
       new THREE.MeshStandardMaterial({
-        color: 0x082944,
+        color: 0x0f4d7f,
         metalness: 0.15,
         roughness: 0.88,
         transparent: true,

@@ -66,7 +66,9 @@ function load({
     UrlFetchApp: {
       fetch: (url, options) => {
         fetched.push({ url, options });
-        if (fetchThrows) throw new Error('DNS lookup failed');
+        if (fetchThrows) {
+          throw new Error(typeof fetchThrows === 'string' ? fetchThrows : 'DNS lookup failed');
+        }
         return {
           getResponseCode: () => estimateStatus,
           getContentText: () => estimateBody,
@@ -182,7 +184,8 @@ test('the health check separates the setup mistakes', () => {
 
   const noPricing = JSON.parse(load({ estimateSecret: null }).doGet().text);
   assert.equal(noPricing.estimateConfigured, false);
-  assert.equal(noPricing.estimateProblem, 'not configured');
+  // Naming the property is the whole of the fix, so the reason says which one is missing.
+  assert.equal(noPricing.estimateProblem, 'not configured (add ESTIMATE_SHARED_SECRET)');
 });
 
 test('the estimate is fetched server-side and carried into the email', () => {
@@ -228,7 +231,55 @@ test('a pricing failure never costs the inquiry', () => {
 
   const unset = load({ estimateEndpoint: null, estimateSecret: null });
   assert.equal(post(unset, inquiry()).ok, true);
-  assert.match(unset.sent[0].body, /None - not configured/);
+  assert.match(
+    unset.sent[0].body,
+    /None - not configured \(add ESTIMATE_ENDPOINT and ESTIMATE_SHARED_SECRET\)/,
+  );
+});
+
+test('a missing fetch permission is not reported as a network problem', () => {
+  // Fetching an external URL is a permission the project did not need until the estimate was
+  // added, so a deployment authorised before then fails every attempt. Calling that "unreachable"
+  // sends the operator hunting a URL that was right all along.
+  const denied =
+    'Exception: You do not have permission to call UrlFetchApp.fetch. Required permissions: ' +
+    'https://www.googleapis.com/auth/script.external_request';
+
+  const box = load({ fetchThrows: denied });
+  assert.equal(post(box, inquiry()).ok, true, 'the lead must still be delivered');
+  assert.match(box.sent[0].body, /None - not authorised to fetch/);
+  // The email is internal, so it carries the exact reason rather than only the category.
+  assert.match(box.sent[0].body, /script\.external_request/);
+
+  const health = JSON.parse(load({ fetchThrows: denied }).doGet().text);
+  assert.equal(health.estimateProblem, 'not authorised to fetch');
+  // The health check page is public, so the detail stays out of it.
+  assert.equal(JSON.stringify(health).includes('external_request'), false);
+});
+
+test('testEstimate lets an authorisation error escape rather than reporting it', () => {
+  // The whole point of running it from the editor is to be offered the consent screen. Apps Script
+  // only offers it when the authorisation error goes unhandled, so this one call must not be
+  // wrapped the way the submission path wraps it.
+  const denied = 'Exception: You do not have permission to call UrlFetchApp.fetch.';
+  assert.throws(() => load({ fetchThrows: denied }).testEstimate(), /do not have permission/);
+
+  assert.throws(
+    () => load({ estimateEndpoint: null }).testEstimate(),
+    /ESTIMATE_ENDPOINT is not set/,
+  );
+
+  // Anything the service itself refuses is still reported plainly, since no prompt would help.
+  const refused = load({
+    estimateStatus: 401,
+    estimateBody: JSON.stringify({ error: 'Not authorised.' }),
+  });
+  assert.throws(() => refused.testEstimate(), /refused/);
+
+  const box = load();
+  assert.match(box.testEstimate(), /reachable/);
+  // The unguarded probe, then the real request.
+  assert.equal(box.fetched.length, 2);
 });
 
 test('the property type is required and decides the tariff', () => {
