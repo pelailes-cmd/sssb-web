@@ -1,8 +1,12 @@
 /**
- * Quote inquiry mailer for the Smart Save Solar website.
+ * Sales mailer for the Smart Save Solar website.
  *
- * Deployed as a Google Apps Script web app, this receives the short quote form and emails it to
- * the sales inbox. Deployment instructions are in EMAIL_SETUP.md.
+ * Deployed as a Google Apps Script web app, this receives two kinds of submission and emails both
+ * to the sales inbox: the short estimate request, and a checked-out shopping cart. Deployment
+ * instructions are in EMAIL_SETUP.md.
+ *
+ * Nothing here takes payment. An order is a detailed enquiry: it is priced from its own lines,
+ * given a reference, and answered with a promise that sales will call. See `handleOrder`.
  *
  * The recipient address lives in Script Properties rather than in this file, so it is never
  * published in the website bundle. Every field is validated again here: the browser's checks are
@@ -38,6 +42,25 @@ var PROPERTY_LABELS = {
   commercial: 'Commercial',
   industrial: 'Industrial',
 };
+
+/** Payment is arranged by sales afterwards; nothing is charged by the website. */
+var PAYMENT_LABELS = {
+  gcash: 'GCash',
+  maya: 'Maya',
+  bank_transfer: 'Bank Transfer',
+  card: 'Credit / Debit Card',
+};
+
+/** Branches a customer can collect from. Mirrors serviceAreaOptions in src/data/siteData.ts. */
+var BRANCH_LABELS = {
+  pili: 'Pili, Camarines Sur',
+  lipa: 'Lipa City, Batangas',
+};
+
+var MAX_ORDER_LINES = 30;
+var MAX_LINE_QUANTITY = 99;
+/** A single line beyond this stops being a website order and becomes a conversation. */
+var MAX_UNIT_PRICE = 10000000;
 
 /**
  * Writes to the execution log. New projects run on V8, where `console` exists, but a project left
@@ -100,7 +123,12 @@ function text(value) {
 }
 
 function positiveNumber(value) {
-  var parsed = parseFloat(String(value).replace(/[^\d.]/g, ''));
+  var raw = String(value);
+  // The strip below exists so a pasted "₱8,000" still reads as 8000. A minus sign is not that kind
+  // of noise: without this guard "-5" loses its sign and comes back as 5, which would turn a
+  // negative price or quantity into a positive one instead of refusing it.
+  if (raw.indexOf('-') !== -1) return null;
+  var parsed = parseFloat(raw.replace(/[^\d.]/g, ''));
   return isFinite(parsed) && parsed > 0 ? parsed : null;
 }
 
@@ -349,15 +377,12 @@ function requestEstimate(propertyType, monthlyBill) {
  * the account objects to, the plain three-argument form usually still goes through — and an
  * inquiry that arrives looking basic is far better than one that never arrives.
  */
-function deliver(recipient, inquiry, estimate, estimateProblem) {
-  var body = buildEmail(inquiry, estimate, estimateProblem);
-  var subject = 'New estimate request - ' + inquiry.fullName;
-
+function sendEmail(recipient, replyTo, subject, body) {
   try {
     MailApp.sendEmail({
       to: recipient,
       // Replying to the notification reaches the customer directly.
-      replyTo: inquiry.email,
+      replyTo: replyTo,
       subject: subject,
       body: body.plain,
       htmlBody: body.html,
@@ -373,6 +398,15 @@ function deliver(recipient, inquiry, estimate, estimateProblem) {
       return { ok: false, reason: String(plainError) };
     }
   }
+}
+
+function deliver(recipient, inquiry, estimate, estimateProblem) {
+  return sendEmail(
+    recipient,
+    inquiry.email,
+    'New estimate request - ' + inquiry.fullName,
+    buildEmail(inquiry, estimate, estimateProblem),
+  );
 }
 
 /**
@@ -440,6 +474,183 @@ function testEstimate() {
   return 'The estimate service is reachable.';
 }
 
+/**
+ * Checks an order the same way `validate` checks an inquiry: as though nothing the browser said
+ * were true. The totals are recomputed from the lines rather than taken from the payload, so the
+ * figure sales reads is one this script worked out.
+ */
+function validateOrder(payload) {
+  var fullName = text(payload.fullName);
+  var email = text(payload.email);
+  var phone = text(payload.phone);
+  var address = text(payload.address);
+  var landmark = text(payload.landmark);
+  var paymentMethod = text(payload.paymentMethod);
+  var voucher = text(payload.voucher);
+
+  if (fullName.length < 2) return { error: 'A full name is required.' };
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) return { error: 'A valid email is required.' };
+  if (!/^\+?[\d\s()-]{7,20}$/.test(phone)) return { error: 'A valid phone number is required.' };
+  if (address.length < 10) return { error: 'A complete delivery address is required.' };
+  if (landmark.length < 3) return { error: 'A landmark is required.' };
+  if (!PAYMENT_LABELS[paymentMethod]) return { error: 'A valid mode of payment is required.' };
+  if (voucher && !/^[A-Za-z0-9-]{3,24}$/.test(voucher)) {
+    return { error: 'That voucher code is not in a format we recognise.' };
+  }
+
+  var rawLines = payload.lines;
+  if (!rawLines || !rawLines.length) return { error: 'The order has no items.' };
+  if (rawLines.length > MAX_ORDER_LINES) return { error: 'That is too many items for one order.' };
+
+  var lines = [];
+  var total = 0;
+  var itemCount = 0;
+
+  for (var index = 0; index < rawLines.length; index += 1) {
+    var raw = rawLines[index] || {};
+    var name = text(raw.name);
+    var branch = text(raw.branch);
+    var quantity = positiveNumber(raw.quantity);
+    var unitPrice = positiveNumber(raw.unitPrice);
+
+    if (!name) return { error: 'An ordered item is missing its name.' };
+    if (!BRANCH_LABELS[branch]) return { error: 'An ordered item names an unknown branch.' };
+    if (quantity === null || quantity > MAX_LINE_QUANTITY || Math.round(quantity) !== quantity) {
+      return { error: 'An ordered item has an invalid quantity.' };
+    }
+    if (unitPrice === null || unitPrice > MAX_UNIT_PRICE) {
+      return { error: 'An ordered item has an invalid price.' };
+    }
+
+    var lineTotal = unitPrice * quantity;
+    total += lineTotal;
+    itemCount += quantity;
+    lines.push({
+      name: name,
+      category: text(raw.category),
+      branch: BRANCH_LABELS[branch],
+      quantity: quantity,
+      unitPrice: unitPrice,
+      lineTotal: lineTotal,
+    });
+  }
+
+  return {
+    order: {
+      fullName: fullName,
+      email: email,
+      phone: phone,
+      address: address,
+      landmark: landmark,
+      paymentMethod: PAYMENT_LABELS[paymentMethod],
+      voucher: voucher,
+      lines: lines,
+      itemCount: itemCount,
+      total: total,
+      reference: orderReference(),
+    },
+  };
+}
+
+/** Something short for the customer and sales to quote at each other on the phone. */
+function orderReference() {
+  var now = new Date();
+  var stamp =
+    String(now.getFullYear()).slice(2) +
+    ('0' + (now.getMonth() + 1)).slice(-2) +
+    ('0' + now.getDate()).slice(-2);
+  var tail = Math.floor(Math.random() * 46656)
+    .toString(36)
+    .toUpperCase();
+  while (tail.length < 3) tail = '0' + tail;
+  return 'SSS-' + stamp + '-' + tail;
+}
+
+function buildOrderEmail(order) {
+  var details = [
+    ['Reference', order.reference],
+    ['Full name', order.fullName],
+    ['Email', order.email],
+    ['Phone', order.phone],
+    ['Delivery address', order.address],
+    ['Landmark', order.landmark],
+    ['Mode of payment', order.paymentMethod],
+    ['Voucher code', order.voucher || 'None given'],
+  ];
+
+  var items = order.lines.map(function (line) {
+    return [
+      line.quantity + ' x ' + line.name + ' (' + line.branch + ')',
+      peso(line.lineTotal) + '  @ ' + peso(line.unitPrice),
+    ];
+  });
+  items.push(['Total for ' + order.itemCount + ' item(s)', peso(order.total)]);
+
+  var notice =
+    'No payment has been taken. The customer has been told that sales will contact them to ' +
+    'arrange payment and the rest of the transaction.';
+
+  return {
+    plain: plainTable(details) + '\n\nOrder\n' + plainTable(items) + '\n\n' + notice,
+    html:
+      htmlTable(details) +
+      '<p style="margin:22px 0 8px;font-family:Arial,sans-serif;font-size:13px;font-weight:700;' +
+      'letter-spacing:.08em;text-transform:uppercase;color:#60778a">Order</p>' +
+      htmlTable(items) +
+      '<p style="margin:22px 0 0;font-family:Arial,sans-serif;font-size:13px;color:#60778a">' +
+      escapeHtml(notice) +
+      '</p>',
+  };
+}
+
+/**
+ * Handles a submitted cart.
+ *
+ * The website charges nothing, so the only thing that must not fail is the email: once sales has
+ * the order, the transaction can continue by phone whatever else goes wrong.
+ */
+function handleOrder(payload) {
+  var checked = validateOrder(payload);
+  if (checked.error) return json({ ok: false, error: checked.error });
+
+  if (!withinRateLimit(checked.order.email)) {
+    return json({
+      ok: false,
+      error: 'Several orders were already sent. Please call us so we can help.',
+    });
+  }
+
+  var recipient = resolveRecipient();
+  if (recipient.error) {
+    logLine('Recipient unusable: ' + recipient.error);
+    return json({ ok: false, error: recipient.error, detail: recipient.error });
+  }
+
+  var sent = sendEmail(
+    recipient.address,
+    checked.order.email,
+    'New order ' + checked.order.reference + ' - ' + checked.order.fullName,
+    buildOrderEmail(checked.order),
+  );
+  if (!sent.ok) {
+    logLine('Order send failed: ' + sent.reason);
+    return json({
+      ok: false,
+      error: 'The order could not be emailed. Please try again.',
+      detail: sent.reason,
+    });
+  }
+
+  return json({
+    ok: true,
+    receipt: {
+      reference: checked.order.reference,
+      itemCount: checked.order.itemCount,
+      total: checked.order.total,
+    },
+  });
+}
+
 function doPost(e) {
   var payload;
   try {
@@ -452,6 +663,10 @@ function doPost(e) {
   // succeeded so an automated caller learns nothing, but send nothing.
   if (text(payload.website) !== '') return json({ ok: true });
   if (Number(payload.elapsedMs) < MIN_ELAPSED_MS) return json({ ok: true });
+
+  // Two kinds of submission arrive here: the estimate request, and a checked-out cart. They share
+  // the honeypot, the timing check and the per-address rate limit above.
+  if (text(payload.type) === 'order') return handleOrder(payload);
 
   var checked = validate(payload);
   if (checked.error) return json({ ok: false, error: checked.error });

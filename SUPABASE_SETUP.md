@@ -186,3 +186,24 @@ and rate-limit checks in front of it, and every attempt arrives in the sales inb
 
 If the section is skipped, the form still works and inquiries still reach sales — the visitor is
 simply shown no figure, and the email says so.
+
+## 12. Price products and report branch stock
+
+The product catalogue can be ordered from. Both the price a visitor sees and the stock shown per
+branch are part of each product record, so they are edited where the rest of the catalogue is.
+
+1. Sign in and open **Content -> Products** in the administrator sidebar.
+2. Open a product and fill in **Selling price per unit**, then **Stock — Pili, Camarines Sur** and
+   **Stock — Lipa City, Batangas**.
+3. Save. The change is live on the next page load; no redeployment is involved.
+
+No migration is needed — both fields are stored in the record the product already has, and both are
+optional so every product saved before the shop existed is untouched.
+
+Until a product has a price it is listed as **Price on request** and has no "Add to cart" button.
+That is deliberate: an unpriced catalogue entry should be visible and unbuyable rather than
+advertised at a figure nobody set. A branch with no stock reported reads as out of stock, and the
+add-to-cart panel shows both branches so a visitor can see where the item actually is.
+
+Nothing about ordering charges a card. An order is emailed to the sales inbox and the customer is
+told to expect a call; see `EMAIL_SETUP.md` section 7.

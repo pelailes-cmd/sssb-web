@@ -57,6 +57,9 @@ export type ProductModel = {
   label: string;
 };
 
+/** Units held at each branch. A branch left out is not stocking the product at all. */
+export type ProductStock = Partial<Record<ServiceAreaCode, number>>;
+
 export type Product = {
   id: string;
   name: string;
@@ -70,6 +73,15 @@ export type Product = {
   sourceNote?: string;
   featured?: boolean;
   availability?: ServiceAreaCode[];
+  /**
+   * Selling price per unit, in pesos. Optional on purpose: a product with no price set is listed
+   * as "Price on request" and cannot be ordered, which is the right behaviour for a catalogue
+   * entry nobody has priced yet. Records saved before ordering existed carry no price, and a
+   * required field would make every one of them fail validation and vanish from the site.
+   */
+  price?: number;
+  /** Units on hand per branch. Absent means the branch has not reported a count. */
+  stock?: ProductStock;
 };
 
 export type ProductCategory =

@@ -2,6 +2,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App';
 import { AdminProvider } from './cms/AdminContext';
+import { CartProvider } from './cms/CartContext';
 import { QuoteDialogProvider } from './cms/QuoteDialogContext';
 import { ServiceAreaProvider } from './cms/ServiceAreaContext';
 import { SiteContentProvider } from './cms/SiteContentContext';
@@ -12,9 +13,11 @@ createRoot(document.getElementById('root')!).render(
     <SiteContentProvider>
       <ServiceAreaProvider>
         <QuoteDialogProvider>
-          <AdminProvider>
-            <App />
-          </AdminProvider>
+          <CartProvider>
+            <AdminProvider>
+              <App />
+            </AdminProvider>
+          </CartProvider>
         </QuoteDialogProvider>
       </ServiceAreaProvider>
     </SiteContentProvider>

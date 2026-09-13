@@ -428,6 +428,48 @@ function ProductFields({
         value={value.availability}
         onChange={(availability) => onChange({ ...value, availability })}
       />
+      <Field
+        label="Selling price per unit"
+        hint="In pesos. Leave blank to list the product as “Price on request”, which also keeps it out of the cart."
+      >
+        <input
+          type="number"
+          min="0"
+          step="100"
+          value={value.price ?? ''}
+          onChange={(event) => {
+            const parsed = Number.parseFloat(event.target.value);
+            onChange({
+              ...value,
+              price: Number.isFinite(parsed) && parsed > 0 ? parsed : undefined,
+            });
+          }}
+        />
+      </Field>
+      {serviceAreaOptions.map((option) => (
+        <Field
+          key={option.code}
+          label={`Stock — ${option.place}`}
+          hint="Units on hand. Zero or blank shows the branch as out of stock."
+        >
+          <input
+            type="number"
+            min="0"
+            step="1"
+            value={value.stock?.[option.code] ?? ''}
+            onChange={(event) => {
+              const parsed = Number.parseInt(event.target.value, 10);
+              const next = { ...(value.stock ?? {}) };
+              if (Number.isFinite(parsed) && parsed >= 0) next[option.code] = parsed;
+              else delete next[option.code];
+              onChange({
+                ...value,
+                stock: Object.keys(next).length ? next : undefined,
+              });
+            }}
+          />
+        </Field>
+      ))}
     </>
   );
 }

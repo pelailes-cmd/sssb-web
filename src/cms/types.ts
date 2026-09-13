@@ -1,7 +1,9 @@
 import { isAllowedEmbedUrl, mediaPlatforms, type MediaPlatform } from '../lib/mediaEmbed';
 import {
   productCategories,
+  serviceAreaCodes,
   type AboutContent,
+  type ServiceAreaCode,
   type DocumentEntry,
   type MediaItem,
   type PortfolioEntry,
@@ -98,6 +100,24 @@ const isImage = (value: unknown) => isRecord(value) && hasStrings(value, ['src',
 const hasOptionalAvailability = (value: Record<string, unknown>) =>
   value.availability === undefined || isStringArray(value.availability);
 
+/**
+ * Price and per-branch stock are optional for the same reason availability is: every product saved
+ * before ordering existed carries neither, and requiring them would drop all of those records.
+ * A product with no price is listed but cannot be ordered.
+ */
+const hasOptionalPricing = (value: Record<string, unknown>) =>
+  (value.price === undefined ||
+    (typeof value.price === 'number' && Number.isFinite(value.price) && value.price >= 0)) &&
+  (value.stock === undefined ||
+    (isRecord(value.stock) &&
+      Object.entries(value.stock).every(
+        ([area, units]) =>
+          serviceAreaCodes.includes(area as ServiceAreaCode) &&
+          typeof units === 'number' &&
+          Number.isFinite(units) &&
+          units >= 0,
+      )));
+
 const isProduct = (value: Record<string, unknown>) =>
   hasStrings(value, ['id', 'name', 'category', 'eyebrow', 'summary']) &&
   productCategories.slice(1).includes(value.category as Product['category']) &&
@@ -108,7 +128,8 @@ const isProduct = (value: Record<string, unknown>) =>
   (value.models === undefined ||
     (Array.isArray(value.models) &&
       value.models.every((model) => isRecord(model) && hasStrings(model, ['src', 'label'])))) &&
-  hasOptionalAvailability(value);
+  hasOptionalAvailability(value) &&
+  hasOptionalPricing(value);
 
 const isPromotion = (value: Record<string, unknown>) =>
   hasStrings(value, ['id', 'title', 'supportingLine', 'status', 'statusLabel', 'condition']) &&
