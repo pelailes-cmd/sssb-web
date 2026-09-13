@@ -2,6 +2,8 @@ import { Phone } from 'lucide-react';
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { useAdmin } from './cms/AdminContext';
 import { AboutSection } from './components/AboutSection';
+import { AddToCartDialog } from './components/cart/AddToCartDialog';
+import { CartDialog } from './components/cart/CartDialog';
 import { ContactSection } from './components/ContactSection';
 import { DocumentationSection } from './components/DocumentationSection';
 import { Footer } from './components/Footer';
@@ -53,6 +55,16 @@ function QuoteDialogs() {
   );
 }
 
+/** Adding to the cart and checking out, in the same modal style as the quote journeys. */
+function CartDialogs() {
+  return (
+    <Suspense fallback={null}>
+      <AddToCartDialog />
+      <CartDialog />
+    </Suspense>
+  );
+}
+
 export default function App() {
   const [heroIsVisible, setHeroIsVisible] = useState(true);
   const [contactIsVisible, setContactIsVisible] = useState(false);
@@ -96,6 +108,7 @@ export default function App() {
       </main>
       <Footer />
       <QuoteDialogs />
+      <CartDialogs />
       <AdminOverlays />
       <a
         className={`mobile-call-fab${showMobileCall ? ' is-visible' : ''}`}

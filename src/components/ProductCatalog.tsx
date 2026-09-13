@@ -1,5 +1,6 @@
-import { ArrowUpRight, Search, SlidersHorizontal } from 'lucide-react';
+import { ArrowUpRight, Search, ShoppingCart, SlidersHorizontal } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
+import { useCart } from '../cms/CartContext';
 import { useServiceArea } from '../cms/ServiceAreaContext';
 import { useSiteContent } from '../cms/SiteContentContext';
 import {
@@ -9,6 +10,7 @@ import {
   type Product,
   type ProductCategory,
 } from '../data/siteData';
+import { formatPeso, isOrderable } from '../lib/cart';
 import { ProductDialog } from './ProductDialog';
 import { ProductModelPreview } from './ProductModelPreview';
 import { SectionHeading } from './SectionHeading';
@@ -20,6 +22,7 @@ type Filter = 'All' | ProductCategory;
 export function ProductCatalog() {
   const { products } = useSiteContent();
   const { area } = useServiceArea();
+  const { openAddToCart } = useCart();
   const [filter, setFilter] = useState<Filter>('All');
   const [query, setQuery] = useState('');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
@@ -147,14 +150,37 @@ export function ProductCatalog() {
                   <h3>{product.name}</h3>
                   <p className="product-card__eyebrow">{product.eyebrow}</p>
                   <p>{product.summary}</p>
-                  <button
-                    className="product-card__details"
-                    type="button"
-                    onClick={() => setSelectedProduct(product)}
-                  >
-                    View Details
-                    <ArrowUpRight aria-hidden="true" size={18} />
-                  </button>
+                  {/* A product nobody has priced is listed but cannot be ordered — better than
+                      inventing a figure or hiding the product entirely. */}
+                  <p className="product-card__price">
+                    {isOrderable(product) ? (
+                      <>
+                        {formatPeso(product.price as number)} <span>per unit</span>
+                      </>
+                    ) : (
+                      <em>Price on request</em>
+                    )}
+                  </p>
+                  <div className="product-card__actions">
+                    <button
+                      className="product-card__details"
+                      type="button"
+                      onClick={() => setSelectedProduct(product)}
+                    >
+                      View Details
+                      <ArrowUpRight aria-hidden="true" size={18} />
+                    </button>
+                    {isOrderable(product) ? (
+                      <button
+                        className="button button--solar product-card__add"
+                        type="button"
+                        onClick={() => openAddToCart(product)}
+                      >
+                        <ShoppingCart aria-hidden="true" size={16} />
+                        Add to cart
+                      </button>
+                    ) : null}
+                  </div>
                 </div>
               </article>
             ))}

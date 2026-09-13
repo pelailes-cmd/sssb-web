@@ -316,7 +316,117 @@ test('fields are validated again on the server', () => {
   assert.equal(post(box, inquiry({ address: '' })).ok, false);
   assert.equal(post(box, inquiry({ roofType: 'thatch' })).ok, false);
   assert.equal(post(box, inquiry({ floors: '0' })).ok, false);
+  // The lenient number parse strips currency symbols and separators; it must not strip the sign
+  // as well, or a negative would arrive as its own positive.
+  assert.equal(post(box, inquiry({ floors: '-2' })).ok, false);
+  assert.equal(post(box, inquiry({ monthlyBill: '-8000' })).ok, false);
   assert.equal(box.sent.length, 0);
+});
+
+const order = (overrides = {}) => ({
+  type: 'order',
+  fullName: 'Juan dela Cruz',
+  email: 'juan@example.com',
+  phone: '0997-688-4865',
+  address: '12 Rizal Street, Barangay San Jose, Pili',
+  landmark: 'Beside the covered court',
+  paymentMethod: 'gcash',
+  voucher: '',
+  lines: [
+    {
+      productId: 'panel',
+      name: '620W Panel',
+      category: 'Solar Panels',
+      branch: 'pili',
+      unitPrice: 12000,
+      quantity: 2,
+    },
+    {
+      productId: 'inverter',
+      name: '8kW Inverter',
+      category: 'Inverters',
+      branch: 'lipa',
+      unitPrice: 55000,
+      quantity: 1,
+    },
+  ],
+  website: '',
+  elapsedMs: 9000,
+  ...overrides,
+});
+
+test('a checked-out cart is emailed with a reference sales can quote back', () => {
+  const box = load();
+  const result = post(box, order());
+
+  assert.equal(result.ok, true);
+  assert.match(result.receipt.reference, /^SSS-\d{6}-[0-9A-Z]{3}$/);
+  assert.equal(result.receipt.itemCount, 3);
+  assert.equal(result.receipt.total, 79000);
+
+  const [sent] = box.sent;
+  assert.match(sent.subject, /^New order SSS-/);
+  assert.equal(sent.replyTo, 'juan@example.com', 'replying should reach the customer');
+  assert.match(sent.body, /2 x 620W Panel \(Pili, Camarines Sur\)/);
+  assert.match(sent.body, /1 x 8kW Inverter \(Lipa City, Batangas\)/);
+  assert.match(sent.body, /Total for 3 item\(s\): ₱79,000/);
+  assert.match(sent.body, /Mode of payment: GCash/);
+  assert.match(sent.body, /Landmark: Beside the covered court/);
+  assert.match(sent.body, /Voucher code: None given/);
+  // Sales must not be left wondering whether money already moved.
+  assert.match(sent.body, /No payment has been taken/);
+
+  // Orders never reach the pricing service; that is only for the bill-based estimate.
+  assert.equal(box.fetched.length, 0);
+});
+
+test('the order total is recomputed rather than taken from the browser', () => {
+  const box = load();
+  // A tampered cart claiming a total of one peso still gets priced from its own lines.
+  const result = post(box, order({ total: 1, itemCount: 999 }));
+
+  assert.equal(result.receipt.total, 79000);
+  assert.equal(result.receipt.itemCount, 3);
+  assert.match(box.sent[0].body, /₱79,000/);
+});
+
+test('a voucher is carried to sales rather than discounted here', () => {
+  const box = load();
+  assert.equal(post(box, order({ voucher: 'SAVE-2026' })).ok, true);
+  assert.match(box.sent[0].body, /Voucher code: SAVE-2026/);
+  // The figure sales reads is the undiscounted one; they apply the code themselves.
+  assert.match(box.sent[0].body, /₱79,000/);
+
+  const bad = load();
+  assert.equal(post(bad, order({ voucher: 'not a code' })).ok, false);
+  assert.equal(bad.sent.length, 0);
+});
+
+test('an order is checked line by line before anything is sent', () => {
+  const box = load();
+  const lineWith = (changes) => order({ lines: [{ ...order().lines[0], ...changes }] });
+
+  assert.equal(post(box, order({ lines: [] })).ok, false);
+  assert.equal(post(box, order({ paymentMethod: 'crypto' })).ok, false);
+  assert.equal(post(box, order({ landmark: '' })).ok, false);
+  assert.equal(post(box, order({ address: 'too short' })).ok, false);
+  assert.equal(post(box, lineWith({ branch: 'mars' })).ok, false);
+  assert.equal(post(box, lineWith({ quantity: 0 })).ok, false);
+  assert.equal(post(box, lineWith({ quantity: 2.5 })).ok, false);
+  assert.equal(post(box, lineWith({ quantity: 1000 })).ok, false);
+  assert.equal(post(box, lineWith({ unitPrice: -5 })).ok, false);
+  assert.equal(post(box, lineWith({ name: '' })).ok, false);
+  assert.equal(box.sent.length, 0, 'nothing invalid should reach the inbox');
+});
+
+test('orders pass the same spam checks as estimate requests', () => {
+  const trapped = load();
+  assert.equal(post(trapped, order({ website: 'http://spam' })).ok, true);
+  assert.equal(trapped.sent.length, 0);
+
+  const instant = load();
+  assert.equal(post(instant, order({ elapsedMs: 200 })).ok, true);
+  assert.equal(instant.sent.length, 0);
 });
 
 test('one address cannot flood the daily send quota', () => {

@@ -1,6 +1,7 @@
-import { FileText, LogIn, Menu, PhoneCall, ShieldCheck, X } from 'lucide-react';
+import { FileText, LogIn, Menu, PhoneCall, ShieldCheck, ShoppingCart, X } from 'lucide-react';
 import { useEffect, useId, useRef, useState } from 'react';
 import { useAdmin } from '../cms/AdminContext';
+import { useCart } from '../cms/CartContext';
 import { useQuoteDialog } from '../cms/QuoteDialogContext';
 import { assetUrl, business, navItems } from '../data/siteData';
 
@@ -17,6 +18,7 @@ export function Header() {
   const panelRef = useRef<HTMLDivElement>(null);
   const { isAdmin, openAdmin, status: adminStatus } = useAdmin();
   const { openInquiry } = useQuoteDialog();
+  const { count: cartCount, openCart } = useCart();
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 20);
@@ -119,6 +121,24 @@ export function Header() {
         >
           <FileText aria-hidden="true" size={18} />
           <span>Get an Estimate</span>
+        </button>
+
+        {/* Icon only at every width: the header row is already full, and the count is the part
+            that carries the meaning. The label lives in the accessible name instead. */}
+        <button
+          className="header-cart"
+          type="button"
+          aria-label={
+            cartCount ? `Cart, ${cartCount} ${cartCount === 1 ? 'item' : 'items'}` : 'Cart, empty'
+          }
+          onClick={openCart}
+        >
+          <ShoppingCart aria-hidden="true" size={18} />
+          {cartCount > 0 ? (
+            <span className="header-cart__badge" aria-hidden="true">
+              {cartCount > 99 ? '99+' : cartCount}
+            </span>
+          ) : null}
         </button>
 
         <a

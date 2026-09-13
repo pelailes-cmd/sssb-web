@@ -488,7 +488,9 @@ section[id] {
    the width of the whole brand link, so the size is fluid — on a phone it shares the header row
    with the estimate button and the menu. */
 .brand__copy {
-  font-size: clamp(0.86rem, 1.05vw, 1.02rem);
+  /* Capped just below where the header's own width stops growing. Past that the wordmark would
+     keep widening into a row that cannot, and it is the widest thing competing with the links. */
+  font-size: clamp(0.86rem, 1.05vw, 0.96rem);
   font-weight: 800;
   letter-spacing: -0.01em;
   line-height: 1.05;
@@ -508,7 +510,9 @@ section[id] {
   /* Wider than the original, which read as cramped. The ceiling is not the viewport but the header
      itself: its inner width caps at --container-wide, so the row has about 750px to play with at
      every desktop size. Measured, the nine items and eight gaps come to ~720px here. */
-  gap: clamp(0.78rem, 1vw, 0.98rem);
+  /* The maximum is reached at about 1440px, where the header's own width stops growing. Letting
+     these keep climbing past it would widen the row into a header that cannot follow. */
+  gap: clamp(0.78rem, 1vw, 0.9rem);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -523,7 +527,7 @@ section[id] {
   /* Up from 0.68rem. The middle term has to out-pace the viewport for the size to move at all: at
      0.73vw even a 1440px screen landed below the floor, so the original clamp sat pinned at its
      minimum everywhere and the size never actually changed. */
-  font-size: clamp(0.75rem, 0.92vw, 0.83rem);
+  font-size: clamp(0.75rem, 0.92vw, 0.82rem);
   font-weight: 690;
   line-height: 1.15;
   text-align: center;
@@ -3369,6 +3373,10 @@ section[id] {
   }
 
   .site-header__inner {
+    /* Tighter than the 1rem the row uses on a phone. Adding the cart put six controls either side
+       of the navigation, and the five gaps between them were the cheapest 20px to find — cheaper
+       than shrinking the navigation type that was just enlarged. */
+    gap: 0.75rem;
     padding-right: 0.7rem;
   }
 }
@@ -6947,6 +6955,20 @@ dialog.quote-dialog[open] {
   }
 }
 
+/* The narrowest width the desktop navigation appears at is also the width with the least room for
+   it: the wordmark, nine links and four buttons do not fit together until about 1280px. Below that
+   every action is an icon — the call and login buttons already were — and each regains its label as
+   the room arrives: the estimate button here, the other two at 1400px. */
+@media (min-width: 1180px) and (max-width: 1279px) {
+  .header-quote span {
+    display: none;
+  }
+
+  .header-quote {
+    padding-inline: 0.85rem;
+  }
+}
+
 /* Once the desktop navigation is hidden the header actions gather on the right, next to the menu
    button. Without this the quote button is left stranded beside the brand with the whole width of
    the bar empty after it. */
@@ -7036,5 +7058,387 @@ dialog.quote-dialog[open] {
 @media (forced-colors: active) {
   dialog.quote-dialog {
     border: 1px solid CanvasText !important;
+  }
+}
+
+/* Cart ------------------------------------------------------------------------------------- */
+
+/* Icon only at every width, like the login button beside it: the header row has no space for
+   another label, and the count is what carries the meaning. */
+.header-cart {
+  position: relative;
+  display: inline-flex;
+  width: 2.8rem;
+  min-height: 2.8rem;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 999px;
+  color: var(--color-white);
+  background: rgba(255, 255, 255, 0.08);
+  cursor: pointer;
+  transition:
+    background-color var(--duration-fast) ease,
+    translate var(--duration-fast) var(--ease-standard);
+}
+
+.header-cart:hover {
+  translate: 0 -1px;
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.header-cart__badge {
+  position: absolute;
+  top: -0.3rem;
+  right: -0.3rem;
+  display: inline-flex;
+  min-width: 1.15rem;
+  height: 1.15rem;
+  align-items: center;
+  justify-content: center;
+  padding-inline: 0.25rem;
+  border-radius: 999px;
+  color: var(--color-navy-950);
+  background: var(--color-solar);
+  font-size: 0.66rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.product-card__price {
+  margin: 0.35rem 0 0;
+  color: var(--color-ink);
+  font-size: 1.15rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+.product-card__price span {
+  color: var(--color-muted);
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.product-card__price em {
+  color: var(--color-muted);
+  font-size: 0.92rem;
+  font-style: normal;
+  font-weight: 700;
+}
+
+.product-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+  margin-top: 0.9rem;
+}
+
+.product-card__add {
+  min-height: 2.5rem;
+  padding-inline: 0.95rem;
+  font-size: 0.78rem;
+}
+
+.cart-dialog__body {
+  display: grid;
+  gap: 1.1rem;
+  padding-top: 0.35rem;
+}
+
+.cart-dialog__price {
+  margin: 0;
+  color: var(--color-ink);
+  font-size: 1.5rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.cart-dialog__price span {
+  color: var(--color-muted);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.cart-branches {
+  display: grid;
+  gap: 0.55rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.cart-branches legend {
+  padding: 0;
+  color: var(--color-muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.cart-branch {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.cart-branch.is-selected {
+  border-color: var(--color-blue-700);
+  background: var(--color-background);
+}
+
+.cart-branch.is-empty {
+  opacity: 0.62;
+}
+
+.cart-branch__place {
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+
+/* Marks the branch serving the location the visitor already chose on the page. */
+.cart-branch__place em {
+  padding: 0.15rem 0.4rem;
+  border-radius: 999px;
+  color: var(--color-navy-950);
+  background: var(--color-solar);
+  font-size: 0.6rem;
+  font-style: normal;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.cart-branch__stock {
+  color: var(--color-muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.cart-quantity {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+}
+
+.cart-quantity > span {
+  color: var(--color-muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.cart-quantity__control {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.2rem;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+}
+
+.cart-quantity__control button {
+  display: inline-flex;
+  width: 2.1rem;
+  height: 2.1rem;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 999px;
+  color: var(--color-ink);
+  background: none;
+  cursor: pointer;
+}
+
+.cart-quantity__control button:hover:not(:disabled) {
+  background: var(--color-background);
+}
+
+.cart-quantity__control button:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.cart-quantity__control input {
+  width: 3rem;
+  border: 0;
+  background: none;
+  font-size: 0.95rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+/* The browser's own spinners fight the buttons either side of the field. */
+.cart-quantity__control input::-webkit-outer-spin-button,
+.cart-quantity__control input::-webkit-inner-spin-button {
+  margin: 0;
+  appearance: none;
+}
+
+.cart-dialog__total {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  margin: 0;
+  padding-top: 0.9rem;
+  border-top: 1px solid var(--color-border);
+}
+
+.cart-dialog__total span {
+  color: var(--color-muted);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.cart-dialog__total strong {
+  color: var(--color-ink);
+  font-size: 1.4rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.cart-dialog__note {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 0.78rem;
+}
+
+.cart-lines {
+  display: grid;
+  max-height: min(46vh, 26rem);
+  gap: 0.7rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow-y: auto;
+}
+
+.cart-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+  padding: 0.85rem 0.95rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+}
+
+.cart-line__copy {
+  min-width: 11rem;
+  flex: 1;
+}
+
+.cart-line__copy h3 {
+  margin: 0;
+  font-size: 0.94rem;
+  line-height: 1.3;
+}
+
+.cart-line__copy p {
+  margin: 0.2rem 0 0;
+  color: var(--color-muted);
+  font-size: 0.76rem;
+}
+
+.cart-line__copy span {
+  color: var(--color-muted);
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.cart-line__controls {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+}
+
+.cart-line__controls > strong {
+  min-width: 5.5rem;
+  font-size: 0.95rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.cart-line__remove {
+  display: inline-flex;
+  width: 2.1rem;
+  height: 2.1rem;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  color: var(--color-error);
+  background: none;
+  cursor: pointer;
+}
+
+.cart-line__remove:hover {
+  background: var(--color-background);
+}
+
+.cart-dialog__empty {
+  display: grid;
+  justify-items: center;
+  gap: 0.7rem;
+  padding: 2rem 0.5rem 0.5rem;
+  text-align: center;
+}
+
+.cart-dialog__empty svg {
+  width: 2.6rem;
+  height: 2.6rem;
+  color: var(--color-muted);
+}
+
+.cart-dialog__empty h3 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.cart-dialog__empty p {
+  max-width: 34ch;
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 0.88rem;
+}
+
+.cart-reference {
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 620px) {
+  /* The line total and the stepper stop sharing a row before the dialog runs out of width. */
+  .cart-line__controls {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .product-card__actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .product-card__add {
+    width: 100%;
+    justify-content: center;
   }
 }

@@ -131,6 +131,33 @@ size and the number of panels. The email should arrive within a few seconds carr
 figures. Replying to that email goes straight to the customer, because their address is set as the
 reply-to.
 
+## 7. Orders from the shop
+
+The product catalogue has a cart. **Order Now** at the end of checkout posts to the same web app,
+so there is nothing else to configure — if estimate requests arrive, orders will too.
+
+An order email arrives as **New order SSS-260913-4KQ – Juan dela Cruz** and carries the customer's
+details, the delivery address and landmark, the mode of payment, any voucher code, every line with
+its branch and quantity, and the total. The reference at the top is what the customer sees on
+screen, so either side can quote it on the phone.
+
+Three things are worth knowing:
+
+- **No payment is taken.** The website has no payment provider. The customer is told plainly that
+  sales will contact them to arrange payment, and the email says the same so nobody assumes money
+  has already moved.
+- **The total is recomputed here**, from the lines in the request, rather than trusted from the
+  browser. A cart edited in someone's own storage cannot change the figure sales reads.
+- **A voucher is carried, not applied.** The code is passed through for sales to confirm; the total
+  is the undiscounted one, and the checkout form says so.
+
+Orders share the hidden field, the timing check and the three-per-hour limit with estimate
+requests, and the same mailbox.
+
+Prices and branch stock are not set here. They live with each product in the admin dashboard —
+see `SUPABASE_SETUP.md` section 12. A product with no price is listed as "Price on request" and
+cannot be added to the cart, so the shop stays quiet until somebody prices it.
+
 ## If an inquiry says "The inquiry could not be emailed"
 
 That message means everything worked except the send itself: the request reached Google, passed the
