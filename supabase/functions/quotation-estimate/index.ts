@@ -10,6 +10,12 @@ import { createClient } from 'npm:@supabase/supabase-js@2.110.8';
 // labels an administrator configured, their rounded amounts, and the total.
 
 const allowedOrigins = new Set([
+  'https://smartsavesolar.lifestyle',
+  // GitHub redirects www to the apex, so this origin should never call in. It is listed anyway for
+  // the moments before that redirect settles after a DNS change.
+  'https://www.smartsavesolar.lifestyle',
+  // The Pages URL the site was served from before the custom domain. Kept so the site still works
+  // if the domain is ever dropped and it falls back there.
   'https://pelailes-cmd.github.io',
   'http://127.0.0.1:5173',
   'http://localhost:5173',

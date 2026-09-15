@@ -389,6 +389,27 @@ test('hostile and stale inputs cannot steer the estimate', async () => {
   assert.ok(stale.systemSizeKwp <= 8, `stale commercial load leaked: ${stale.systemSizeKwp} kWp`);
 });
 
+test('the calculator is reachable from the site own domain and nowhere else', async () => {
+  // The site moved off pelailes-cmd.github.io onto smartsavesolar.lifestyle. This function is the
+  // one public endpoint a browser calls directly, so the move has to be reflected here or the
+  // estimator answers every request with a missing CORS header.
+  for (const origin of [
+    'https://smartsavesolar.lifestyle',
+    'https://www.smartsavesolar.lifestyle',
+  ]) {
+    const response = await post('null', { Origin: origin });
+    assert.equal(
+      response.headers.get('Access-Control-Allow-Origin'),
+      origin,
+      `${origin} should be allowed`,
+    );
+  }
+
+  // Anything else is refused outright rather than answered without the header.
+  const stranger = await post('null', { Origin: 'https://not-our-site.example' });
+  assert.equal(stranger.status, 403);
+});
+
 test('malformed requests fail closed with JSON and CORS intact', async () => {
   const nullBody = await post('null');
   assert.equal(nullBody.status, 400);
