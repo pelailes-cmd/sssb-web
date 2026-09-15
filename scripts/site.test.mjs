@@ -281,3 +281,29 @@ test('service-area availability stays optional so existing records keep validati
     /!area \|\| !item\.availability\?\.length \|\| item\.availability\.includes/,
   );
 });
+
+test('the site is built for its own domain', async () => {
+  // A project Pages site is served below the repository name; a custom domain is served from the
+  // root. Get this wrong and every asset 404s, which is silent until the page is opened.
+  const cname = await readFile(path.join(root, 'public/CNAME'), 'utf8');
+  const domain = cname.trim();
+  assert.equal(domain, 'smartsavesolar.lifestyle');
+  assert.doesNotMatch(domain, /https?:|\//, 'a CNAME holds a bare host, not a URL');
+  assert.ok(!domain.includes('\n'), 'only one domain may be declared');
+
+  const viteConfig = await readFile(path.join(root, 'vite.config.ts'), 'utf8');
+  // Matched against the setting rather than the file, which still mentions the old path in the
+  // comment explaining how to restore it.
+  assert.match(viteConfig, /base: '\/'/);
+  assert.doesNotMatch(
+    viteConfig,
+    /base:[^,\n]*'\/sssb-web\/'/,
+    'the repository-name base path is gone',
+  );
+
+  // Both browser-callable Edge Functions allowlist origins, so both have to know the domain.
+  for (const fn of ['quotation-estimate', 'manage-team-user']) {
+    const source = await readFile(path.join(root, `supabase/functions/${fn}/index.ts`), 'utf8');
+    assert.match(source, /'https:\/\/smartsavesolar\.lifestyle'/, `${fn} should allow the domain`);
+  }
+});

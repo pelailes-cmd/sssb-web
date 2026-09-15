@@ -168,7 +168,7 @@ test('the shared secret is the only way in', async () => {
 test('a browser cannot reach the pricing endpoint', async () => {
   const fromBrowser = await call(
     { propertyType: 'residential', monthlyBill: 8000 },
-    { origin: 'https://pelailes-cmd.github.io' },
+    { origin: 'https://smartsavesolar.lifestyle' },
   );
   assert.equal(fromBrowser.status, 403);
   assert.equal(fromBrowser.payload.estimate, undefined);
