@@ -33,6 +33,8 @@ const estimateReply = JSON.stringify({
 /** Builds a fresh sandbox with the Apps Script services this script uses. */
 function load({
   recipient = 'sales@example.com',
+  estimateRecipient = null,
+  orderRecipient = null,
   failRich = false,
   failPlain = false,
   quotaThrows = false,
@@ -58,6 +60,8 @@ function load({
         getProperty: (key) =>
           ({
             RECIPIENT_EMAIL: recipient,
+            ESTIMATE_RECIPIENT_EMAIL: estimateRecipient,
+            ORDER_RECIPIENT_EMAIL: orderRecipient,
             ESTIMATE_ENDPOINT: estimateEndpoint,
             ESTIMATE_SHARED_SECRET: estimateSecret,
           })[key] ?? null,
@@ -417,6 +421,76 @@ test('an order is checked line by line before anything is sent', () => {
   assert.equal(post(box, lineWith({ unitPrice: -5 })).ok, false);
   assert.equal(post(box, lineWith({ name: '' })).ok, false);
   assert.equal(box.sent.length, 0, 'nothing invalid should reach the inbox');
+});
+
+test('several sales addresses can share one notification', () => {
+  const box = load({ recipient: 'sales@example.com, admin@example.com' });
+  assert.equal(post(box, inquiry()).ok, true);
+  assert.equal(box.sent[0].to, 'sales@example.com,admin@example.com');
+
+  // Commas, semicolons, spaces and line breaks all separate, because people type these by hand.
+  const mixed = load({
+    recipient: 'one@example.com;two@example.com\nthree@example.com four@example.com',
+  });
+  post(mixed, inquiry());
+  assert.equal(
+    mixed.sent[0].to,
+    'one@example.com,two@example.com,three@example.com,four@example.com',
+  );
+
+  // The same mailbox listed twice would deliver two copies and cost two of the day's recipients.
+  const duplicated = load({ recipient: 'sales@example.com, SALES@example.com' });
+  post(duplicated, inquiry());
+  assert.equal(duplicated.sent[0].to, 'sales@example.com');
+});
+
+test('orders and estimate requests can go to different desks', () => {
+  const box = load({
+    recipient: 'fallback@example.com',
+    estimateRecipient: 'estimates@example.com',
+    orderRecipient: 'orders@example.com, warehouse@example.com',
+  });
+
+  post(box, inquiry());
+  assert.equal(box.sent[0].to, 'estimates@example.com');
+
+  post(box, order({ email: 'someone-else@example.com' }));
+  assert.equal(box.sent[1].to, 'orders@example.com,warehouse@example.com');
+
+  // With neither routed, both kinds fall back to the one property.
+  const shared = load({ recipient: 'fallback@example.com' });
+  post(shared, inquiry());
+  post(shared, order({ email: 'another@example.com' }));
+  assert.equal(shared.sent[0].to, 'fallback@example.com');
+  assert.equal(shared.sent[1].to, 'fallback@example.com');
+});
+
+test('a bad address in the list stops the send without naming it publicly', () => {
+  const box = load({ recipient: 'sales@example.com, not-an-address' });
+  const result = post(box, inquiry());
+
+  assert.equal(result.ok, false);
+  assert.match(result.error, /not a valid email address/);
+  assert.equal(box.sent.length, 0, 'one bad address must not half-send to the good ones');
+  // The reply reaches a visitor's browser, so the offending value belongs in the log instead.
+  assert.equal(JSON.stringify(result).includes('not-an-address'), false);
+  assert.ok(box.logs.some((line) => line.includes('not-an-address')));
+
+  // The health check is a public page: it reports how many are configured, never who they are.
+  const health = JSON.parse(load({ recipient: 'a@example.com, b@example.com' }).doGet().text);
+  assert.equal(health.estimateRecipients, 2);
+  assert.equal(health.orderRecipients, 2);
+  assert.equal(JSON.stringify(health).includes('a@example.com'), false);
+});
+
+test('too many recipients is refused rather than quietly draining the quota', () => {
+  const many = Array.from({ length: 7 }, (_, index) => `person${index}@example.com`).join(',');
+  const box = load({ recipient: many });
+  const result = post(box, inquiry());
+
+  assert.equal(result.ok, false);
+  assert.match(result.error, /Too many recipients/);
+  assert.equal(box.sent.length, 0);
 });
 
 test('orders pass the same spam checks as estimate requests', () => {

@@ -44,6 +44,40 @@ JavaScript, so it cannot be scraped from the page.
 
 If the property is missing, the script falls back to the Google account that owns it.
 
+### Sending to more than one person
+
+`RECIPIENT_EMAIL` accepts a list. Everybody on it receives every notification:
+
+```
+sales@yourcompany.com, admin@yourcompany.com, owner@yourcompany.com
+```
+
+Commas, semicolons, spaces and line breaks all separate addresses, so paste them however is
+convenient. The same mailbox listed twice is only sent to once.
+
+### Sending orders and estimate requests to different people
+
+Two optional properties route by kind. Set either, both, or neither:
+
+| Property                   | Receives                     |
+| -------------------------- | ---------------------------- |
+| `ESTIMATE_RECIPIENT_EMAIL` | estimate requests only       |
+| `ORDER_RECIPIENT_EMAIL`    | orders from the shop only    |
+| `RECIPIENT_EMAIL`          | whatever is not routed above |
+
+Each of these takes a list too, so orders can go to two people and estimate requests to someone
+else. `RECIPIENT_EMAIL` still has to be set as the fallback.
+
+**Keep the lists short.** Gmail's daily allowance counts _recipients_, not messages — three people
+on every notification spends the allowance three times as fast, against 100 a day on a consumer
+account. The script refuses more than five on one notification rather than draining the quota
+quietly. For a larger team, make a Google Group and use the group's address: it fans the message
+out on Google's side and costs one recipient.
+
+One bad address stops the whole send rather than delivering to the rest, so a typo is loud instead
+of silently losing one person from the list. The health check below reports how many recipients are
+configured for each kind; run `testMailer` from the editor to see the actual addresses in the log.
+
 ## 3. Connect the estimate
 
 The figures are computed in Supabase, not in the script and not in the browser. This section wires
@@ -169,11 +203,16 @@ quick way to tell them apart.
 ```json
 {
   "recipientConfigured": true,
+  "estimateRecipients": 2,
+  "orderRecipients": 1,
   "mailAuthorised": true,
   "quotaRemaining": 97,
   "estimateConfigured": true
 }
 ```
+
+The two counts are how you confirm a list or a routing change took: they are numbers rather than
+addresses because this page is public.
 
 - `"mailAuthorised": false` — the deployment has not been granted permission to send mail. This is
   the usual cause on a first deployment, and it happens when the project was deployed before the

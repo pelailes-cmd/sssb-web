@@ -28,6 +28,15 @@ var MIN_ELAPSED_MS = 1000;
 /** Submissions accepted from one email address per hour. */
 var MAX_PER_EMAIL_PER_HOUR = 3;
 
+/**
+ * Recipients allowed on one notification.
+ *
+ * Gmail's daily allowance counts recipients, not messages, so putting three people on every
+ * notification spends that allowance three times as fast. Past a handful, one Google Group address
+ * is a better answer than a longer list here — the group fans it out and costs a single recipient.
+ */
+var MAX_RECIPIENTS = 5;
+
 var ROOF_LABELS = {
   metal: 'Corrugated metal / G.I. sheet',
   concrete: 'Concrete deck',
@@ -86,7 +95,11 @@ function json(payload) {
  * public.
  */
 function doGet() {
-  var recipient = resolveRecipient();
+  // Both kinds are resolved, because they can be routed to different desks and either one can be
+  // misconfigured on its own.
+  var estimateTo = resolveRecipient('estimate');
+  var orderTo = resolveRecipient('order');
+  var recipient = estimateTo.error ? estimateTo : orderTo;
   var mailAuthorised = false;
   var quotaRemaining = null;
 
@@ -110,6 +123,9 @@ function doGet() {
     service: 'quote-inquiry',
     recipientConfigured: !recipient.error,
     recipientProblem: recipient.error || null,
+    // Counts only. The addresses themselves are not published on a page anyone can open.
+    estimateRecipients: estimateTo.addresses ? estimateTo.addresses.length : 0,
+    orderRecipients: orderTo.addresses ? orderTo.addresses.length : 0,
     mailAuthorised: mailAuthorised,
     quotaRemaining: quotaRemaining,
     estimateConfigured: !probe.error,
@@ -271,13 +287,60 @@ function buildEmail(inquiry, estimate, estimateProblem) {
  * A stray space or a name pasted in place of an address is a common mistake, and it surfaces as a
  * failure at send time rather than at configuration time, so it is checked here instead.
  */
-function resolveRecipient() {
-  var configured = PropertiesService.getScriptProperties().getProperty('RECIPIENT_EMAIL');
-  var address = configured ? String(configured).trim() : '';
+/**
+ * Splits one property into a list of addresses.
+ *
+ * People type these lists by hand, so commas, semicolons, spaces and line breaks are all accepted
+ * as separators. Duplicates are dropped case-insensitively — the same mailbox listed twice would
+ * otherwise cost two of the day's recipients and deliver two copies.
+ */
+function parseRecipients(value) {
+  if (!value) return [];
 
-  if (!address) {
+  var parts = String(value).split(/[,;\s]+/);
+  var seen = {};
+  var addresses = [];
+
+  for (var index = 0; index < parts.length; index += 1) {
+    var address = parts[index].trim();
+    if (!address) continue;
+
+    var key = address.toLowerCase();
+    if (seen[key]) continue;
+    seen[key] = true;
+    addresses.push(address);
+  }
+
+  return addresses;
+}
+
+/**
+ * Works out where to send, and says why if it cannot.
+ *
+ * Every property here may hold one address or a list of them, and everybody listed receives the
+ * notification. Two optional properties route by kind: set ORDER_RECIPIENT_EMAIL and orders go
+ * there instead, set ESTIMATE_RECIPIENT_EMAIL and estimate requests do. Whatever is not routed
+ * falls back to RECIPIENT_EMAIL, so a single property is still all this needs.
+ *
+ * A stray space or a name pasted in place of an address is a common mistake, and it surfaces as a
+ * failure at send time rather than at configuration time, so it is checked here instead. The
+ * offending address goes in `detail` rather than `error`, because `error` is shown on the public
+ * health check and returned to the browser.
+ */
+function resolveRecipient(kind) {
+  var properties = PropertiesService.getScriptProperties();
+  var routed =
+    kind === 'order'
+      ? properties.getProperty('ORDER_RECIPIENT_EMAIL')
+      : kind === 'estimate'
+        ? properties.getProperty('ESTIMATE_RECIPIENT_EMAIL')
+        : null;
+
+  var addresses = parseRecipients(routed || properties.getProperty('RECIPIENT_EMAIL'));
+
+  if (!addresses.length) {
     try {
-      address = Session.getEffectiveUser().getEmail();
+      addresses = parseRecipients(Session.getEffectiveUser().getEmail());
     } catch (lookupError) {
       return {
         error:
@@ -287,16 +350,34 @@ function resolveRecipient() {
     }
   }
 
-  if (!address) {
+  if (!addresses.length) {
     return { error: 'The inquiry mailbox is not configured. Add a RECIPIENT_EMAIL property.' };
   }
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(address)) {
+
+  for (var index = 0; index < addresses.length; index += 1) {
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(addresses[index])) {
+      return {
+        error: 'A configured recipient is not a valid email address.',
+        detail: 'Not a valid email address: "' + addresses[index] + '".',
+      };
+    }
+  }
+
+  if (addresses.length > MAX_RECIPIENTS) {
     return {
-      error: 'The RECIPIENT_EMAIL property is not a valid email address: "' + address + '".',
+      error: 'Too many recipients are configured.',
+      detail:
+        addresses.length +
+        ' addresses are listed but the limit is ' +
+        MAX_RECIPIENTS +
+        '. Gmail counts every recipient against the daily allowance; use a Google Group address ' +
+        'for a larger team.',
     };
   }
 
-  return { address: address };
+  // MailApp takes a comma-separated string in `to`; the array is kept for the health check and the
+  // execution log, which report how many are configured.
+  return { address: addresses.join(','), addresses: addresses };
 }
 
 /**
@@ -418,11 +499,18 @@ function deliver(recipient, inquiry, estimate, estimateProblem) {
  * sees. Select `testMailer` in the toolbar and press Run, then read the execution log.
  */
 function testMailer() {
-  var recipient = resolveRecipient();
+  var recipient = resolveRecipient('estimate');
   if (recipient.error) {
-    throw new Error(recipient.error);
+    throw new Error(recipient.error + (recipient.detail ? ' ' + recipient.detail : ''));
   }
 
+  // Run from the editor by the owner, so the addresses themselves are safe to print here.
+  var orderTo = resolveRecipient('order');
+  logLine('Estimate requests go to ' + recipient.addresses.join(', '));
+  logLine(
+    'Orders go to ' +
+      (orderTo.addresses ? orderTo.addresses.join(', ') : 'nowhere: ' + orderTo.error),
+  );
   logLine('Sending a test message to ' + recipient.address);
   MailApp.sendEmail({
     to: recipient.address,
@@ -620,9 +708,10 @@ function handleOrder(payload) {
     });
   }
 
-  var recipient = resolveRecipient();
+  var recipient = resolveRecipient('order');
   if (recipient.error) {
-    logLine('Recipient unusable: ' + recipient.error);
+    logLine('Recipient unusable: ' + recipient.error + ' ' + (recipient.detail || ''));
+    // `detail` names the offending address; it stays in the log rather than the reply.
     return json({ ok: false, error: recipient.error, detail: recipient.error });
   }
 
@@ -678,9 +767,10 @@ function doPost(e) {
     });
   }
 
-  var recipient = resolveRecipient();
+  var recipient = resolveRecipient('estimate');
   if (recipient.error) {
-    logLine('Recipient unusable: ' + recipient.error);
+    logLine('Recipient unusable: ' + recipient.error + ' ' + (recipient.detail || ''));
+    // `detail` names the offending address; it stays in the log rather than the reply.
     return json({ ok: false, error: recipient.error, detail: recipient.error });
   }
 
